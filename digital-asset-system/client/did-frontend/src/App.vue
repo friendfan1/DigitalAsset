@@ -1,0 +1,43 @@
+<template>
+  <el-config-provider>
+    <div class="app-container">
+      <header class="app-header">
+        <HeaderNav />
+      </header>
+      <main class="app-main">
+        <router-view></router-view>
+      </main>
+      
+      <!-- 上传状态监视器 -->
+      <UploadStatusMonitor ref="uploadMonitorRef" />
+    </div>
+  </el-config-provider>
+</template>
+
+<script setup lang="ts">
+import { ElConfigProvider } from 'element-plus'
+import HeaderNav from './components/common/HeaderNav.vue';
+import UploadStatusMonitor from './components/upload/UploadStatusMonitor.vue';
+import { ref, provide } from 'vue';
+
+// 提供上传状态监视器的引用
+const uploadMonitorRef = ref(null);
+provide('uploadMonitor', uploadMonitorRef);
+</script>
+
+<style scoped>
+.app-container {
+  min-height: 100vh;
+  margin-top: 70px;
+}
+
+
+/* .logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+} */
+
+/* .app-main {
+  padding: 2rem;
+} */
+</style>

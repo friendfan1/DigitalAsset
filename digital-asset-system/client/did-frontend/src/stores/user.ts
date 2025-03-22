@@ -1,0 +1,98 @@
+import { defineStore } from 'pinia'
+//import { encrypt, decrypt } from '@/utils/crypto' // 添加加密工具
+
+type UserRole = 'user' | 'auditor' | 'admin'
+export type verificationstate = 'NOT_SUBMITTED' | 'VERIFIED' | 'PENDING_REVIEW'
+
+type UserProfile = {
+  userId: number
+  username: string
+  email: string
+  USCC: string
+  role: UserRole
+  token: string
+  createdAt: Date
+  verifications: verificationstate
+  walletAddress: string
+  did: string
+}
+
+
+export const useUserStore = defineStore('user', {
+  state: () => ({
+    profile: null as UserProfile | null,
+  }),
+  getters: {
+    isLoggedIn(state): boolean {
+      return !!state.profile?.token
+    },
+    isAdmin(state): boolean {
+      return state.profile?.role === 'admin'
+    },
+    isVerification(state): boolean {
+      return state.profile?.verifications === 'VERIFIED'
+    }
+  },
+
+  actions: {
+    // 初始化时从安全存储加载
+    initialize() {
+      const Profile = localStorage.getItem('userProfile')
+      if (Profile) {
+        try {
+            this.profile = JSON.parse(Profile);
+            console.log('加载的用户信息:', this.profile); // 调试用
+        } catch (error: any) {
+            console.error('解析用户信息出错:', error);
+            this.clearUser();
+        }
+      } else {
+        console.log('本地存储中没有用户信息');
+      }
+    },
+
+    // 设置用户信息
+    async setAuthData(authData: UserProfile) {
+      console.log('后端设置用户信息:', authData.username); // 调试用
+      // 将 createdAt 转换为 Date 类型
+      const newProfile = {
+        ...authData,
+        createdAt: new Date(authData.createdAt)
+      };
+      this.profile = newProfile;
+      console.log('前端接口用户信息:', this.profile); // 调试用
+      localStorage.setItem('userProfile', JSON.stringify(this.profile));
+    },
+
+    // 清除用户数据
+    clearUser() {
+      this.profile = null
+      localStorage.removeItem('userProfile')
+    },
+
+    // 更新用户资料
+    async updateProfile(updateData: Partial<UserProfile>) {
+      if (!this.profile) return
+      
+      this.profile = { ...this.profile, ...updateData }
+      localStorage.setItem('userProfile', JSON.stringify(this.profile))
+    },
+
+    // 检查用户名是否存在 (带取消功能)
+    // async checkUsernameExists(username: string, signal?: AbortSignal) {
+    //   try {
+    //     const res = await fetch(`/api/user/exists/${encodeURIComponent(username)}`, {
+    //       signal
+    //     })
+        
+    //     if (!res.ok) throw new Error('Check failed')
+    //     return await res.json()
+    //   } catch (error) {
+    //     if ((error as any).name !== 'AbortError') {
+    //       console.error('Username check error:', error)
+    //     }
+    //     return false
+    //   }
+    // }
+  }
+})

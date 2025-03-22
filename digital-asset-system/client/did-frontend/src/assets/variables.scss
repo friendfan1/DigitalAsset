@@ -1,0 +1,91 @@
+// styles/variables.scss
+@use "sass:color";
+
+// 基础颜色
+$color-white: #ffffff !default;
+$color-black: #000000 !default;
+$color-grey-1: #f5f7fa !default;
+$color-grey-2: #e4e7ed !default;
+$color-grey-3: #909399 !default;
+
+// 主题颜色
+$color-primary: #409EFF !default;
+$color-primary-light-1: color.mix($color-white, $color-primary, 10%) !default;
+$color-primary-light-2: color.mix($color-white, $color-primary, 20%) !default;
+$color-primary-dark-1: color.mix($color-black, $color-primary, 10%) !default;
+$color-primary-dark-2: color.mix($color-black, $color-primary, 20%) !default;
+
+$color-success: #67C23A !default;
+$color-warning: #E6A23C !default;
+$color-danger: #F56C6C !default;
+
+// 文字颜色
+$text-primary: #2c3e50 !default;
+$text-regular: #606266 !default;
+$text-secondary: #909399 !default;
+$text-placeholder: #c0c4cc !default;
+
+// 背景颜色
+$bg-base: $color-white !default;
+$bg-page: #f2f3f5 !default;
+$bg-hover: #f5f7fa !default;
+
+// 边框
+$border-color-base: #dcdfe6 !default;
+$border-color-light: #e4e7ed !default;
+$border-radius-base: 4px !default;  // 修正变量名
+$border-radius-round: 20px !default;
+
+// 尺寸系统
+$navbar-height: 60px !default;
+$sidebar-width: 240px !default;
+
+// 阴影
+$shadow-base: 0 2px 4px rgba(0, 0, 0, 0.12) !default;
+$shadow-light: 0 2px 12px 0 rgba(0, 0, 0, 0.1) !default;
+
+// 过渡动画
+$transition-duration: 0.3s !default;
+$transition-function: ease-in-out !default;
+
+// 暗黑模式
+$dark-bg-primary: #1a1a1a !default;
+$dark-bg-secondary: #242424 !default;
+$dark-text-primary: rgba(255, 255, 255, 0.9) !default;
+$dark-text-secondary: rgba(255, 255, 255, 0.7) !default;
+$dark-border-color: rgba(255, 255, 255, 0.12) !default;
+
+// 响应式断点
+$breakpoint-xs: 480px !default;
+$breakpoint-sm: 768px !default;
+$breakpoint-md: 992px !default;
+$breakpoint-lg: 1200px !default;
+$breakpoint-xl: 1920px !default;
+
+
+// 设计变量
+$--color-primary: #409EFF;
+$--color-success: #67C23A;
+$--color-warning: #E6A23C;
+$--color-danger: #F56C6C;
+$--color-info: #909399;
+
+// 间距系统
+$spacer: 8px;
+$spacers: (
+  0: 0,
+  1: $spacer,
+  2: $spacer * 2,
+  3: $spacer * 3,
+  4: $spacer * 4,
+  5: $spacer * 5,
+);
+
+// 响应式断点
+$breakpoints: (
+  'xs': 0,
+  'sm': 576px,
+  'md': 768px,
+  'lg': 992px,
+  'xl': 1200px
+);
