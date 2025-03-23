@@ -2,10 +2,7 @@ package com.wpf.DigitalAsset.service;
 
 import com.wpf.DigitalAsset.dao.CompanyVerification;
 import com.wpf.DigitalAsset.dto.CompanyWithWallet;
-import com.wpf.DigitalAsset.dao.CompanyVerificationRepository;
-import com.wpf.DigitalAsset.dao.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;

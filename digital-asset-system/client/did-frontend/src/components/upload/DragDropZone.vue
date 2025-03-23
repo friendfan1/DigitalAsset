@@ -78,8 +78,21 @@ const isDragOver = ref(false);
 
 // 计算显示的文件类型
 const displayAcceptedTypes = computed(() => {
+  const typeMap: Record<string, string> = {
+    'image/*': '图片(JPG/PNG/GIF等)',
+    'video/*': '视频(MP4/WebM等)',
+    'audio/*': '音频(MP3/WAV等)',
+    'application/pdf': 'PDF',
+    'application/msword': 'Word',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
+    'text/plain': '文本'
+  };
+
   return props.acceptedTypes
-    .map(type => type.split('/')[1].toUpperCase())
+    .map(type => {
+      // 使用映射表中的友好名称，或者从MIME类型中提取
+      return typeMap[type] || type.split('/')[1].toUpperCase();
+    })
     .join(', ');
 });
 

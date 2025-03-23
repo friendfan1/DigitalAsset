@@ -414,8 +414,8 @@ export class DigitalAssetService extends BaseWeb3Service {
           // 6. 调用合约注册资产
           console.log('合约调用参数:', {
             address,
-            cid,
-            hash,
+          cid,
+          hash,
             encryptedKey,
             signature,
             gasLimit: 1000000
@@ -432,8 +432,8 @@ export class DigitalAssetService extends BaseWeb3Service {
                 cid,
                 hash,
                 encryptedKey,
-                signature
-              );
+          signature
+        );
               console.log('Gas估算成功:', gasEstimate.toString());
               // 使用估算的Gas加上20%的缓冲
               const gasLimit = Math.ceil(Number(gasEstimate) * 1.2);
@@ -453,8 +453,8 @@ export class DigitalAssetService extends BaseWeb3Service {
               // 强制更新进度到90%，表示交易已发送
               this.uploadProgressCache.set(uploadId, 90);
               console.log(`强制设置上传进度 ${uploadId}: 90% (交易已发送)`);
-  
-              // 监控交易
+
+        // 监控交易
               console.log('等待交易确认...');
               const receipt = await tx.wait();
               console.log('交易已确认，区块号:', receipt?.blockNumber);
@@ -544,7 +544,7 @@ export class DigitalAssetService extends BaseWeb3Service {
             
             throw contractError;
           }
-        } catch (error) {
+      } catch (error) {
           // 错误处理 - 强制设置进度为失败状态
           this.uploadProgressCache.set(uploadId, -1);
           console.error(`上传失败: ${uploadId}, 错误:`, error);

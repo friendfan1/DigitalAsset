@@ -1162,6 +1162,7 @@ const checkCurrentWallet = async () => {
             const accounts = await ethereum.request({ 
                 method: 'eth_accounts' 
             }) as string[];
+            console.log('accounts:', accounts);
             
             if (accounts.length > 0) {
                 await walletStore.connectMetaMask();

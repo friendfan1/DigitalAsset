@@ -82,6 +82,14 @@ export const web3Config: Web3Config = {
   },
   files: {
     maxSize: 50 * 1024 * 1024, // 50MB
-    allowedTypes: ['image/*', 'application/pdf']
+    allowedTypes: [
+      'image/*', 
+      'application/pdf', 
+      'video/*', 
+      'audio/*', 
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain'
+    ]
   }
 };

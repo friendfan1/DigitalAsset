@@ -216,7 +216,7 @@
           </el-button-group>
         </div>
         
-        <el-table
+        <el-table 
           v-loading="isLoading"
           :data="filteredAssets"
           stripe
@@ -248,11 +248,11 @@
           </el-table-column>
           <el-table-column label="操作" width="200">
             <template #default="{ row }">
-              <el-button size="small" @click="viewAssetDetails(row)">查看</el-button>
-              <el-button 
-                size="small" 
-                type="primary" 
-                v-if="!row.isCertified"
+                <el-button size="small" @click="viewAssetDetails(row)">查看</el-button>
+                <el-button 
+                  size="small" 
+                  type="primary" 
+                  v-if="!row.isCertified"
                 @click="initiateCertification(row)"
               >
                 认证
@@ -273,12 +273,12 @@
           <div v-if="hasActiveFilters">
             <el-empty description="没有符合筛选条件的资产" />
             <el-button type="info" @click="resetFilters">清除筛选条件</el-button>
-          </div>
+        </div>
           <div v-else>
             <el-empty description="暂无资产" />
             <el-button type="primary" @click="activeTab = 'register'">注册新资产</el-button>
-          </div>
-        </div>
+    </div>
+      </div>
 
         <!-- 分页组件 -->
         <div class="pagination-container">
@@ -292,7 +292,7 @@
           />
         </div>
       </template>
-    </div>
+      </div>
 
     <!-- 资产登记 -->
     <div v-if="activeTab === 'register'" class="register-section">
@@ -374,7 +374,7 @@
           <p><strong>资产ID:</strong> {{ assetToDelete.tokenId }}</p>
           <p><strong>文件名:</strong> {{ assetToDelete.metadata.fileName }}</p>
           <p><strong>注册时间:</strong> {{ formatDate(assetToDelete.registrationDate) }}</p>
-        </div>
+  </div>
         <div class="safety-check">
           <p>请输入"DELETE"以确认删除:</p>
           <el-input v-model="deleteConfirmText" placeholder="请输入DELETE"></el-input>
@@ -392,7 +392,7 @@
             <span v-else>删除中...</span>
           </el-button>
         </span>
-      </template>
+</template>
     </el-dialog>
 
     <!-- 批量删除确认对话框 -->
@@ -473,16 +473,30 @@
         
         <div class="preview-section">
           <!-- 图片预览 -->
-          <iframe  
-            v-if="assetPreviewUrl && assetDetails.metadata.fileType.startsWith('image/')"
-            :src="assetPreviewUrl" 
-            style="width: 100%; height: 500px; border: none; margin-bottom: 1rem;"
-            ></iframe >
+          <div v-if="assetPreviewUrl && assetDetails.metadata.fileType.startsWith('image/')">
+            <iframe  
+              :src="assetPreviewUrl" 
+              @load="handleIframeLoad"
+              @error="handleIframeError"
+              v-if="!iframeLoadFailed"
+              style="width: 100%; height: 500px; border: none; margin-bottom: 1rem;"
+            ></iframe>
+            <!-- 备用图片显示 -->
+            <img 
+              v-if="iframeLoadFailed"
+              :src="assetPreviewUrl"
+              @error="handleImageError"
+              style="max-width: 100%; max-height: 500px; margin: 0 auto; display: block; margin-bottom: 1rem;"
+              alt="资产预览"
+            />
+          </div>
           
           <!-- PDF预览 -->
           <iframe 
             v-else-if="assetPreviewUrl && assetDetails.metadata.fileType === 'application/pdf'"
             :src="assetPreviewUrl"
+            @load="handleIframeLoad"
+            @error="handleIframeError"
             style="width: 100%; height: 500px; border: none; margin-bottom: 1rem;"
           ></iframe>
           
@@ -490,9 +504,12 @@
           <video
             v-else-if="assetPreviewUrl && assetDetails.metadata.fileType.startsWith('video/')"
             controls
+            :src="assetPreviewUrl"
+            :type="assetDetails.metadata.fileType"
+            crossorigin="anonymous"
+            @error="handleMediaError"
             style="width: 100%; max-height: 400px; margin-bottom: 1rem;"
           >
-            <source :src="assetPreviewUrl" :type="assetDetails.metadata.fileType">
             您的浏览器不支持视频标签。
           </video>
           
@@ -500,9 +517,12 @@
           <audio
             v-else-if="assetPreviewUrl && assetDetails.metadata.fileType.startsWith('audio/')"
             controls
+            :src="assetPreviewUrl" 
+            :type="assetDetails.metadata.fileType"
+            crossorigin="anonymous"
+            @error="handleMediaError"
             style="width: 100%; margin-bottom: 1rem;"
           >
-            <source :src="assetPreviewUrl" :type="assetDetails.metadata.fileType">
             您的浏览器不支持音频标签。
           </audio>
           
@@ -812,11 +832,15 @@ const assetDetails = ref<Asset | null>(null);
 const assetPreviewUrl = ref('');
 const isLoadingPreview = ref(false);
 const fullImageVisible = ref(false); // 控制全屏预览对话框
+const iframeLoadFailed = ref(false); // 控制是否显示备用图片预览
 
 // 查看资产详情
 const viewAssetDetails = async (asset: Asset) => {
   assetDetails.value = asset;
   detailsDialogVisible.value = true;
+  
+  // 重置状态
+  iframeLoadFailed.value = false;
   
   // 尝试获取预览URL
   await generatePreviewUrl(asset);
@@ -827,31 +851,90 @@ const showFullImage = () => {
   fullImageVisible.value = true;
 };
 
-// 生成资产预览URL - 简化版，不再进行复杂的blob处理
+// 生成资产预览URL - 增强版，支持分片文件处理
 const generatePreviewUrl = async (asset: Asset) => {
   try {
     isLoadingPreview.value = true;
+    iframeLoadFailed.value = false; // 重置iframe加载状态
     
     // 检查文件类型是否可以预览
-    const isPreviewable = isFilePreviewable(asset.metadata.fileType);
-    
-    if (!isPreviewable) {
+    if (!asset.metadata || !asset.metadata.fileType) {
       assetPreviewUrl.value = '';
+      isLoadingPreview.value = false;
       return;
     }
     
-    // 从utils导入getIPFSUrl
+    const fileType = asset.metadata.fileType;
+    const isPreviewable = isFilePreviewable(fileType);
+    
+    if (!isPreviewable) {
+      assetPreviewUrl.value = '';
+      isLoadingPreview.value = false;
+      return;
+    }
+    
+    // 导入所需服务
     const { getIPFSUrl } = await import('@/utils/ipfs');
     const { ipfsConfig } = await import('@/config/ipfs.config');
+    const { getChunkedFileService } = await import('@/services/ChunkedFileService');
     
-    // 对所有文件类型使用相同的URL生成方法 - 与PDF处理相同
+    // 获取IPFS网关
     const ipfsGateway = window.ipfsGateway || ipfsConfig.gateway;
-    assetPreviewUrl.value = `${ipfsGateway}${asset.cid}`;
-    console.log('预览URL:', assetPreviewUrl.value);
+    const chunkedService = getChunkedFileService(ipfsGateway);
     
+    // 检查是否是分片文件
+    const isChunked = await chunkedService.isChunkedFile(asset.cid);
+    
+    if (isChunked) {
+      // 检测到分片文件
+      console.log('检测到分片文件:', asset.cid);
+      
+      // 获取元数据
+      const metadata = await chunkedService.getMetadata(asset.cid);
+      console.log('分片文件元数据:', metadata);
+      
+      // 获取预览模式
+      const previewMode = chunkedService.getPreviewMode(fileType);
+      
+      // 根据预览模式处理
+      if (previewMode === 'stream') {
+        // 视频和音频文件使用流服务
+        assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+        console.log('分片媒体流URL:', assetPreviewUrl.value);
+        ElMessage.info('正在加载媒体流，请稍候...');
+      } else if (previewMode === 'image') {
+        // 图片和PDF，尝试使用流服务直接显示
+        if (fileType.startsWith('image/')) {
+          // 对于图片，先尝试iframe方式查看
+          assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+          console.log('分片图片流URL:', assetPreviewUrl.value);
+          ElMessage.info('正在加载图片...');
+        } else if (fileType === 'application/pdf') {
+          // PDF文件使用流服务
+          assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+          console.log('分片PDF流URL:', assetPreviewUrl.value);
+          ElMessage.info('正在加载PDF...');
+        }
+      } else {
+        // 其他类型文件
+        ElMessage.info('该文件过大，已进行分片存储，请下载后查看');
+        assetPreviewUrl.value = '';
+      }
+    } else {
+      // 不是分片文件，使用标准路径
+      assetPreviewUrl.value = `${ipfsGateway}${asset.cid}/content`;
+      
+      // 对视频和音频添加时间戳参数避免缓存问题
+      if (fileType.startsWith('video/') || fileType.startsWith('audio/')) {
+        assetPreviewUrl.value += `?t=${Date.now()}`;
+      }
+      
+      console.log('标准预览URL:', assetPreviewUrl.value);
+    }
   } catch (error) {
     console.error('获取预览失败:', error);
     assetPreviewUrl.value = '';
+    ElMessage.error('预览生成失败: ' + (error instanceof Error ? error.message : String(error)));
   } finally {
     isLoadingPreview.value = false;
   }
@@ -860,13 +943,31 @@ const generatePreviewUrl = async (asset: Asset) => {
 // 判断文件类型是否可预览
 const isFilePreviewable = (fileType: string): boolean => {
   const previewableTypes = [
+    // 图片格式
     'image/jpeg', 'image/png', 'image/gif', 'image/svg+xml',
+    // 文档格式
     'application/pdf',
     'text/plain', 'text/html', 'text/css', 'text/javascript',
-    'video/mp4'
+    // 视频格式
+    'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo',
+    // 音频格式
+    'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/x-m4a', 'audio/webm'
   ];
   
+  // 对于以某些前缀开头的类型也可预览
+  if (fileType.startsWith('image/') || 
+      fileType.startsWith('video/') || 
+      fileType.startsWith('audio/')) {
+    return true;
+  }
+  
   return previewableTypes.includes(fileType.toLowerCase());
+};
+
+// 处理媒体加载错误
+const handleMediaError = (e: Event) => {
+  console.error('媒体加载失败:', assetPreviewUrl.value);
+  ElMessage.error('媒体加载失败，可能的原因：IPFS网关连接问题或内容结构不正确');
 };
 
 // 获取文件图标
@@ -905,34 +1006,85 @@ const formatFileSize = (size: number): string => {
 
 // 下载资产
 const downloadAsset = async (asset: Asset) => {
-  if (!asset) return;
-  
   try {
-    const ipfsGateway = window.ipfsGateway || 'http://localhost:8081/ipfs/';
-    const url = `${ipfsGateway}${asset.cid}`;
+    if (!asset || !asset.cid) {
+      ElMessage.error('无效的文件资产');
+      return;
+    }
     
-    // 使用fetch获取文件内容
-    const response = await fetch(url);
-    const blob = await response.blob();
+    // 导入所需服务
+    const { getIPFSUrl } = await import('@/utils/ipfs');
+    const { ipfsConfig } = await import('@/config/ipfs.config');
+    const { getChunkedFileService } = await import('@/services/ChunkedFileService');
     
-    // 创建下载链接
-    const downloadUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = asset.metadata.fileName;
-    document.body.appendChild(a);
-    a.click();
+    // 获取IPFS网关URL
+    const ipfsGateway = window.ipfsGateway || ipfsConfig.gateway;
+    const chunkedService = getChunkedFileService(ipfsGateway);
     
-    // 清理
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(downloadUrl);
-    }, 100);
+    // 显示下载开始消息
+    ElMessage.info('准备下载文件，请稍候...');
+
+    // 检查是否是分片文件
+    const isChunked = await chunkedService.isChunkedFile(asset.cid);
     
-    ElMessage.success('文件下载已开始');
+    if (isChunked) {
+      console.log('检测到分片文件，准备下载:', asset.cid);
+      
+      // 获取文件名
+      const fileName = asset.metadata?.fileName || '下载文件';
+      
+      // 使用下载服务下载分片文件
+      const downloadUrl = chunkedService.getDownloadUrl(asset.cid, fileName);
+      console.log('分片文件下载URL:', downloadUrl);
+      
+      // 创建隐藏的a标签进行下载
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      ElMessage.success('分片文件下载已开始');
+    } else {
+      // 常规文件下载
+      const downloadUrl = `${ipfsGateway}${asset.cid}/content`;
+      console.log('常规文件下载URL:', downloadUrl);
+      
+      try {
+        // 使用fetch获取文件内容
+        const response = await fetch(downloadUrl);
+        
+        // 检查响应状态
+        if (!response.ok) {
+          throw new Error(`下载失败: HTTP ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        
+        // 创建下载链接
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = asset.metadata?.fileName || '下载文件';
+        document.body.appendChild(a);
+        a.click();
+        
+        // 清理
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+        
+        ElMessage.success('文件下载已开始');
+      } catch (error) {
+        console.error('下载文件失败:', error);
+        ElMessage.error('下载失败: ' + (error instanceof Error ? error.message : String(error)));
+      }
+    }
   } catch (error) {
-    ElMessage.error('下载失败，请稍后重试');
-    console.error('下载失败:', error);
+    console.error('下载文件失败:', error);
+    ElMessage.error('下载文件失败: ' + (error instanceof Error ? error.message : String(error)));
   }
 };
 
@@ -1402,6 +1554,25 @@ const retryLoadImage = async () => {
     ElMessage.error('重试失败，请检查网络连接或IPFS服务');
   }
 };
+
+// 处理iframe加载成功
+const handleIframeLoad = () => {
+  console.log('图片或PDF加载成功');
+  iframeLoadFailed.value = false;
+};
+
+// 处理iframe加载错误
+const handleIframeError = (event: Event) => {
+  console.error('图片或PDF加载失败:', assetPreviewUrl.value);
+  ElMessage.error('图片或PDF加载失败，正在尝试备用显示方式');
+  iframeLoadFailed.value = true;
+};
+
+// 处理图片加载错误
+const handleImageError = (event: Event) => {
+  console.error('图片直接加载失败:', assetPreviewUrl.value);
+  ElMessage.error('图片加载失败，可能的原因：网络连接问题或文件损坏');
+};
 </script>
 
 <style lang="scss" scoped>
@@ -1773,9 +1944,9 @@ const retryLoadImage = async () => {
   border-radius: 10px;
   border: 1px dashed rgba(100, 255, 218, 0.2);
 }
-
+  
 .pagination-container {
-  margin-top: 20px;
+    margin-top: 20px;
   display: flex;
   justify-content: center;
 }
@@ -1935,9 +2106,9 @@ const retryLoadImage = async () => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.asset-main {
-  display: flex;
-  align-items: center;
+  .asset-main {
+    display: flex;
+    align-items: center;
   margin-bottom: 15px;
   flex-wrap: wrap;
   gap: 10px;
@@ -1946,8 +2117,8 @@ const retryLoadImage = async () => {
   border-radius: 8px 8px 0 0;
   border-bottom: 2px solid rgba(100, 255, 218, 0.2);
 }
-
-.asset-name {
+    
+    .asset-name {
   font-size: 24px;
   font-weight: bold;
   margin-right: 10px;
@@ -1970,10 +2141,10 @@ const retryLoadImage = async () => {
   
   &:hover::after {
     transform: scaleX(1);
+    }
   }
-}
-
-.asset-description {
+  
+  .asset-description {
   color: #8892b0;
   margin: 20px 0;
   line-height: 1.6;
@@ -2041,7 +2212,7 @@ const retryLoadImage = async () => {
 
 .preview-section {
   flex: 1;
-  display: flex;
+    display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
@@ -2419,8 +2590,8 @@ const retryLoadImage = async () => {
 }
 
 /* 优化资产详情中的CID样式 */
-.cid {
-  font-family: monospace;
+    .cid {
+      font-family: monospace;
   background-color: rgba(10, 25, 47, 0.9) !important;
   padding: 5px 8px;
   border-radius: 4px;

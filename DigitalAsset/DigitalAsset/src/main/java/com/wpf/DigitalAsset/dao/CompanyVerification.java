@@ -2,7 +2,6 @@ package com.wpf.DigitalAsset.dao;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.Internal;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;

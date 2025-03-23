@@ -14,6 +14,22 @@
           <el-icon :size="40"><Document /></el-icon>
         </div>
       </div>
+
+      <!-- 视频预览 -->
+      <div v-else-if="isVideo" class="video-preview">
+        <video v-if="previewUrl" controls :src="previewUrl" @error="handleMediaError"></video>
+        <div v-else class="video-icon">
+          <el-icon :size="40"><VideoCamera /></el-icon>
+        </div>
+      </div>
+
+      <!-- 音频预览 -->
+      <div v-else-if="isAudio" class="audio-preview">
+        <audio v-if="previewUrl" controls :src="previewUrl" @error="handleMediaError"></audio>
+        <div v-else class="audio-icon">
+          <el-icon :size="40"><Headset /></el-icon>
+        </div>
+      </div>
       
       <!-- 其他文件类型预览 -->
       <div v-else class="file-icon">
@@ -66,7 +82,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Document, Delete, Loading, SuccessFilled } from '@element-plus/icons-vue';
+import { Document, Delete, Loading, SuccessFilled, VideoCamera, Headset } from '@element-plus/icons-vue';
 import { uploadConfig } from '@/config/upload.config';
 import { fileUtils } from '@/utils/file';
 
@@ -106,6 +122,14 @@ const isPDF = computed(() => {
   return uploadConfig.pdfPreviewTypes.includes(props.file.type);
 });
 
+const isVideo = computed(() => {
+  return uploadConfig.videoPreviewTypes.includes(props.file.type);
+});
+
+const isAudio = computed(() => {
+  return uploadConfig.audioPreviewTypes.includes(props.file.type);
+});
+
 const hasError = computed(() => {
   return !!props.error || previewError.value;
 });
@@ -115,11 +139,32 @@ const isUploading = computed(() => {
 });
 
 const getFileType = computed(() => {
-  return props.file.type.split('/')[1].toUpperCase();
+  const type = props.file.type;
+  // 使用更友好的文件类型显示
+  const typeMap: Record<string, string> = {
+    // 视频类型
+    'video/mp4': 'MP4',
+    'video/webm': 'WebM',
+    'video/ogg': 'OGG',
+    'video/quicktime': 'MOV',
+    'video/x-msvideo': 'AVI',
+    // 音频类型
+    'audio/mpeg': 'MP3',
+    'audio/ogg': 'OGG',
+    'audio/wav': 'WAV',
+    'audio/x-m4a': 'M4A',
+    'audio/webm': 'WebM音频'
+  };
+
+  return typeMap[type] || type.split('/')[1].toUpperCase();
 });
 
 // 方法
 const handleImageError = () => {
+  previewError.value = true;
+};
+
+const handleMediaError = () => {
   previewError.value = true;
 };
 
@@ -130,7 +175,7 @@ const handleRemove = () => {
 // 生成预览
 const generatePreview = async () => {
   try {
-    if (isImage.value || isPDF.value) {
+    if (isImage.value || isPDF.value || isVideo.value || isAudio.value) {
       previewUrl.value = URL.createObjectURL(props.file);
     }
   } catch (error) {
@@ -183,7 +228,7 @@ generatePreview();
     }
   }
   
-  .pdf-preview, .file-icon {
+  .pdf-preview, .file-icon, .video-preview, .audio-preview {
     width: 100%;
     height: 100%;
     display: flex;
@@ -193,11 +238,20 @@ generatePreview();
     background-color: #f5f7fa;
     border-radius: 4px;
     
-    iframe {
+    iframe, video, audio {
       width: 100%;
       height: 100%;
       border-radius: 4px;
     }
+  }
+
+  .video-preview .video-icon,
+  .audio-preview .audio-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
   }
 }
 

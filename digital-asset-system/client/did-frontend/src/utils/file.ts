@@ -40,6 +40,16 @@ export const fileUtils = {
       return 'data:image/svg+xml;base64,...'; // PDF 图标的 base64
     }
 
+    // 如果是视频文件
+    if (uploadConfig.videoPreviewTypes.includes(file.type)) {
+      return URL.createObjectURL(file);
+    }
+
+    // 如果是音频文件
+    if (uploadConfig.audioPreviewTypes.includes(file.type)) {
+      return URL.createObjectURL(file);
+    }
+
     // 其他文件类型返回默认文件图标
     return 'data:image/svg+xml;base64,...'; // 默认文件图标的 base64
   },
