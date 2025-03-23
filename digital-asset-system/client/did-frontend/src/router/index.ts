@@ -3,6 +3,16 @@ import { useWalletStore } from '@/stores/wallet';
 import { useUserStore } from '@/stores/user';
 import { pa } from 'element-plus/es/locales.mjs';
 import { ElMessage } from 'element-plus';
+import { hasPermission } from '@/utils/permission';
+
+// 在文件顶部定义类型
+declare module 'vue-router' {
+  interface RouteMeta {
+    requiresAuth?: boolean;
+    requiresAdmin?: boolean;
+    requiresBlockchainRole?: string;
+  }
+}
 
 const routes = [
   {
@@ -57,6 +67,12 @@ const routes = [
     name: 'Verify',
     component: () => import('@/views/admin/AdminCompanyVerification.vue'),
     meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/web3roles',
+    name: 'Web3RoleManagement',
+    component: () => import('@/views/admin/AdminRoleManagement.vue'),
+    meta: { requiresAuth: true, requiresBlockchainRole: 'ADMIN_ROLE' }
   }
 ];
 
@@ -66,7 +82,7 @@ const router = createRouter({
 });
 
 // 路由守卫
-router.beforeEach((to, from) => {
+router.beforeEach(async (to, from) => {
   const userStore = useUserStore();
   
   // 检查是否需要认证
@@ -77,7 +93,16 @@ router.beforeEach((to, from) => {
   // 检查是否需要管理员权限
   if (to.meta.requiresAdmin && userStore.profile?.role !== 'admin') {
     ElMessage.error('需要管理员权限访问此页面');
-    return from.path; // 返回来源页面
+    return from.path;
+  }
+  
+  // 检查是否需要区块链角色
+  if (to.meta.requiresBlockchainRole) {
+    const hasRole = await hasPermission(to.meta.requiresBlockchainRole as string);
+    if (!hasRole) {
+      ElMessage.error(`需要${to.meta.requiresBlockchainRole}权限访问此页面`);
+      return from.path;
+    }
   }
 });
 

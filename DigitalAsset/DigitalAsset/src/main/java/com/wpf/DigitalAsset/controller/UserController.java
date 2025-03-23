@@ -397,34 +397,6 @@ public class UserController {
         }
     }
 
-//    // 获取所有企业认证记录（管理员权限）
-//    @GetMapping("/api/admin/company-verifications")
-//    @PreAuthorize("hasRole('ADMIN')")
-//    public ResponseEntity<List<CompanyVerification>> getAllCompanyVerifications() {
-//        List<CompanyVerification> verifications = companyVerificationService.getAllVerifications();
-//        return ResponseEntity.ok(verifications);
-//    }
-//
-//    // 审核通过企业认证（管理员权限）
-//    @PostMapping("/api/admin/company-verification/approve/{id}")
-//    @PreAuthorize("hasRole('ADMIN')")
-//    public ResponseEntity<Map<String, Object>> approveCompanyVerification(@PathVariable Integer id) {
-//        Map<String, Object> response = new HashMap<>();
-//        try {
-//            companyVerificationService.approveVerification(id);
-//            response.put("success", true);
-//            response.put("message", "企业认证审核通过");
-//            return ResponseEntity.ok(response);
-//        } catch (Exception e) {
-//            logger.severe("企业认证审核失败: " + e.getMessage());
-//            response.put("success", false);
-//            response.put("message", "企业认证审核失败");
-//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-//        }
-//    }
-
-
-
     private Map<String, Object> getUserSafeInfo(User user, String token) {
         Map<String, Object> safeInfo = new HashMap<>();
         safeInfo.put("userId", user.getUserId());

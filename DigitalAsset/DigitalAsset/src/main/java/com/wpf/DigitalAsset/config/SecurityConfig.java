@@ -33,6 +33,9 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/public/**").permitAll()
+                        .requestMatchers("/api/certification/status/**").permitAll()
+                        .requestMatchers("/api/web3/roles/check/**").permitAll()
+                        .requestMatchers("/api/web3/roles/user/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session ->

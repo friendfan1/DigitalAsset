@@ -92,9 +92,14 @@
         <div class="card-header">
           <el-icon><UserFilled /></el-icon>
           <span>已授权用户列表</span>
-          <el-button type="primary" size="small" class="refresh-btn" @click="loadUserRoles">
-            <el-icon><Refresh /></el-icon>
-          </el-button>
+          <div class="action-buttons">
+            <el-button type="success" size="small" @click="syncAllRoles" :loading="syncingAll">
+              <el-icon><RefreshRight /></el-icon> 全部同步
+            </el-button>
+            <el-button type="primary" size="small" class="refresh-btn" @click="loadUserRoles">
+              <el-icon><Refresh /></el-icon> 刷新
+            </el-button>
+          </div>
         </div>
       </template>
       
@@ -118,15 +123,33 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150">
+        <el-table-column label="同步状态" width="120">
           <template #default="{ row }">
+            <el-tag 
+              :type="row.synced ? 'success' : 'warning'" 
+              effect="dark"
+            >
+              {{ row.synced ? '已同步' : '未同步' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="220">
+          <template #default="{ row }">
+            <el-button 
+              size="small" 
+              type="primary" 
+              @click="handleSyncRole(row)"
+              :loading="syncingAddress === row.address"
+            >
+              同步
+            </el-button>
             <el-button 
               size="small" 
               type="danger" 
               @click="handleRevokeRole(row)"
               :disabled="!row.roles || row.roles.length === 0"
             >
-              撤销权限
+              撤销
             </el-button>
           </template>
         </el-table-column>
@@ -178,20 +201,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { ethers } from 'ethers';
 import { ElMessage } from 'element-plus';
 import type { FormInstance } from 'element-plus';
-import { Key, UserFilled, Refresh, OfficeBuilding } from '@element-plus/icons-vue';
+import { Key, UserFilled, Refresh, OfficeBuilding, RefreshRight } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getDigitalAssetService } from '@/utils/web3/DigitalAssetService';
 import { RBACService } from '@/utils/web3/RBACService';
+import { Web3RoleService } from '@/services/Web3RoleService';
 import axios from 'axios';
 
 // 定义类型
 interface UserRole {
   address: string;
   roles: string[];
+  synced?: boolean; // 添加同步状态字段
 }
 
 // 定义企业类型
@@ -208,6 +232,8 @@ const userStore = useUserStore();
 const loading = ref(false);
 const grantingRole = ref(false);
 const revokingRole = ref(false);
+const syncingAll = ref(false);
+const syncingAddress = ref(''); // 跟踪正在同步的地址
 const userRoles = ref<UserRole[]>([]);
 const revokeDialogVisible = ref(false);
 const selectedUser = ref<UserRole | null>(null);
@@ -270,6 +296,7 @@ const validateAddress = (value: string) => {
 };
 
 const shortenAddress = (address: string) => {
+  if (!address) return '';
   return address.substring(0, 6) + '...' + address.substring(address.length - 4);
 };
 
@@ -291,7 +318,7 @@ const getRoleTagType = (role: string) => {
   return typeMap[role] || 'info';
 };
 
-// 使用 RBAC 服务加载用户角色
+// 使用区块链 RBAC 服务加载用户角色，并标记同步状态
 const loadUserRoles = async () => {
   try {
     loading.value = true;
@@ -303,8 +330,44 @@ const loadUserRoles = async () => {
     // 初始化 RBAC 服务
     const rbacService = new RBACService(provider, signer);
     
-    // 获取所有角色成员
-    userRoles.value = await rbacService.getAllRoleMembers();
+    // 获取所有链上角色成员
+    const chainRoles = await rbacService.getAllRoleMembers();
+    
+    // 为了标记同步状态，我们需要检查后端的角色数据
+    userRoles.value = await Promise.all(
+      chainRoles.map(async (user) => {
+        try {
+          // 调用后端API检查用户角色同步状态
+          const response = await Web3RoleService.getUserRoles(user.address);
+          
+          if (response.data.success) {
+            const backendRoles = response.data.data || [];
+            // 提取后端角色名称到数组
+            const backendRoleNames = backendRoles.map((role: any) => role.roleName);
+            
+            // 检查链上角色是否全部在后端存在
+            const allRolesSynced = user.roles.every(role => 
+              backendRoleNames.includes(role)
+            );
+            
+            return {
+              ...user,
+              synced: allRolesSynced
+            };
+          }
+          return {
+            ...user,
+            synced: false
+          };
+        } catch (error) {
+          console.error('获取用户后端角色失败:', error);
+          return {
+            ...user,
+            synced: false
+          };
+        }
+      })
+    );
     
   } catch (error) {
     ElMessage.error('加载用户角色失败');
@@ -314,7 +377,86 @@ const loadUserRoles = async () => {
   }
 };
 
-// 修改授予角色的函数
+// 同步单个用户的角色
+const handleSyncRole = async (user: UserRole) => {
+  try {
+    syncingAddress.value = user.address;
+    const response = await Web3RoleService.verifyUserRoles(user.address);
+    
+    if (response.data.success) {
+      ElMessage.success(`已同步 ${shortenAddress(user.address)} 的角色`);
+      // 更新该用户的同步状态
+      const index = userRoles.value.findIndex(u => u.address === user.address);
+      if (index !== -1) {
+        userRoles.value[index].synced = true;
+      }
+    } else {
+      ElMessage.error(response.data.message || '角色同步失败');
+    }
+  } catch (error) {
+    console.error('同步角色失败:', error);
+    ElMessage.error('角色同步失败');
+  } finally {
+    syncingAddress.value = '';
+  }
+};
+
+// 同步所有用户的角色
+const syncAllRoles = async () => {
+  try {
+    syncingAll.value = true;
+    
+    // 过滤出未同步的用户
+    const unsyncedUsers = userRoles.value.filter(user => !user.synced);
+    
+    if (unsyncedUsers.length === 0) {
+      ElMessage.info('所有用户角色已同步');
+      return;
+    }
+    
+    // 创建同步任务队列
+    const syncPromises = unsyncedUsers.map(async (user) => {
+      try {
+        await Web3RoleService.verifyUserRoles(user.address);
+        return { address: user.address, success: true };
+      } catch (error) {
+        console.error(`同步角色失败 ${user.address}:`, error);
+        return { address: user.address, success: false };
+      }
+    });
+    
+    // 等待所有同步任务完成
+    const results = await Promise.all(syncPromises);
+    
+    // 统计成功和失败的数量
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.length - successCount;
+    
+    // 更新用户同步状态
+    userRoles.value = userRoles.value.map(user => {
+      const result = results.find(r => r.address === user.address);
+      if (result && result.success) {
+        return { ...user, synced: true };
+      }
+      return user;
+    });
+    
+    // 显示结果
+    if (failCount === 0) {
+      ElMessage.success(`已成功同步 ${successCount} 个用户的角色`);
+    } else {
+      ElMessage.warning(`同步完成: ${successCount} 个成功, ${failCount} 个失败`);
+    }
+    
+  } catch (error) {
+    console.error('批量同步角色失败:', error);
+    ElMessage.error('批量同步角色失败');
+  } finally {
+    syncingAll.value = false;
+  }
+};
+
+// 修改授予角色的函数：同时更新区块链和后端
 const handleGrantRole = async () => {
   if (!grantRoleFormRef.value) return;
   
@@ -326,18 +468,27 @@ const handleGrantRole = async () => {
         // 获取钱包签名者
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
-        console.log(signer.address);
         
         // 初始化 RBAC 服务
         const rbacService = new RBACService(provider, signer);
         
-        // 只进行链上授权
+        // 1. 在区块链上授权
         await rbacService.grantRole(
           grantRoleForm.userAddress,
           grantRoleForm.roleType
         );
         
-        ElMessage.success('角色授予成功');
+        // 2. 在后端同步授权信息
+        const backendResponse = await Web3RoleService.assignRole(
+          grantRoleForm.userAddress,
+          grantRoleForm.roleType
+        );
+        
+        if (backendResponse.data.success) {
+          ElMessage.success('角色授予成功并同步到后端');
+        } else {
+          ElMessage.warning('角色在链上授予成功，但后端同步失败');
+        }
         
         // 重新加载用户列表
         loadUserRoles();
@@ -347,15 +498,14 @@ const handleGrantRole = async () => {
         grantRoleForm.roleType = '';
         
       } catch (error) {
+        console.error('角色授予失败:', error);
         ElMessage.error('角色授予失败');
-        console.error(error);
       } finally {
         grantingRole.value = false;
       }
     }
   });
 };
-
 
 // 打开撤销权限弹窗
 const handleRevokeRole = (user: UserRole) => {
@@ -364,7 +514,7 @@ const handleRevokeRole = (user: UserRole) => {
   revokeDialogVisible.value = true;
 };
 
-// 修改撤销角色的函数
+// 修改撤销角色的函数：同时更新区块链和后端
 const confirmRevokeRole = async () => {
   if (!selectedUser.value || revokeForm.rolesToRevoke.length === 0) return;
   
@@ -378,13 +528,45 @@ const confirmRevokeRole = async () => {
     // 初始化 RBAC 服务
     const rbacService = new RBACService(provider, signer);
     
+    // 跟踪成功和失败的角色
+    const results = {
+      success: [] as string[],
+      failure: [] as string[]
+    };
+    
     // 撤销选中的每个角色
     for (const role of revokeForm.rolesToRevoke) {
-      // 只进行链上撤销
-      await rbacService.revokeRole(selectedUser.value.address, role);
+      try {
+        // 1. 在区块链上撤销
+        await rbacService.revokeRole(selectedUser.value.address, role);
+        
+        // 2. 在后端同步撤销信息
+        const backendResponse = await Web3RoleService.revokeRole(
+          selectedUser.value.address,
+          role
+        );
+        
+        if (backendResponse.data.success) {
+          results.success.push(role);
+        } else {
+          results.failure.push(role);
+        }
+      } catch (error) {
+        console.error(`撤销角色失败 ${role}:`, error);
+        results.failure.push(role);
+      }
     }
     
-    ElMessage.success('角色撤销成功');
+    // 显示结果
+    if (results.failure.length === 0) {
+      ElMessage.success('角色撤销成功');
+    } else if (results.success.length === 0) {
+      ElMessage.error('角色撤销失败');
+    } else {
+      const successRoles = results.success.map(getRoleDisplayName).join(', ');
+      const failureRoles = results.failure.map(getRoleDisplayName).join(', ');
+      ElMessage.warning(`部分角色撤销成功: 成功(${successRoles}), 失败(${failureRoles})`);
+    }
     
     // 重新加载用户列表
     loadUserRoles();
@@ -430,7 +612,7 @@ const handleCompanySelect = (companyId: string) => {
   }
 };
 
-// 修改企业授权函数
+// 修改企业授权函数：同时更新区块链和后端
 const handleGrantCompanyRole = async () => {
   if (!companyGrantFormRef.value) return;
   
@@ -451,13 +633,23 @@ const handleGrantCompanyRole = async () => {
         // 初始化 RBAC 服务
         const rbacService = new RBACService(provider, signer);
         
-        // 只进行链上授权
+        // 1. 在区块链上授权
         await rbacService.grantRole(
           company.walletAddress,
           companyGrantForm.roleType
         );
         
-        ElMessage.success('角色授予成功');
+        // 2. 在后端同步授权信息
+        const backendResponse = await Web3RoleService.assignRole(
+          company.walletAddress,
+          companyGrantForm.roleType
+        );
+        
+        if (backendResponse.data.success) {
+          ElMessage.success('角色授予成功并同步到后端');
+        } else {
+          ElMessage.warning('角色在链上授予成功，但后端同步失败');
+        }
         
         // 重新加载用户列表
         loadUserRoles();
@@ -467,8 +659,8 @@ const handleGrantCompanyRole = async () => {
         companyGrantForm.roleType = '';
         
       } catch (error) {
+        console.error('角色授予失败:', error);
         ElMessage.error('角色授予失败');
-        console.error(error);
       } finally {
         grantingCompanyRole.value = false;
       }
@@ -524,8 +716,13 @@ onMounted(() => {
           font-weight: 500;
         }
         
-        .refresh-btn {
+        .action-buttons {
           margin-left: auto;
+          display: flex;
+          gap: 8px;
+        }
+        
+        .refresh-btn {
           background: transparent;
           border: 1px solid #64ffda;
           color: #64ffda;
@@ -659,6 +856,22 @@ onMounted(() => {
   
   &:hover {
     background: rgba(255, 85, 85, 0.1);
+  }
+  
+  &:disabled {
+    border-color: #6c7983;
+    color: #6c7983;
+    background: transparent;
+  }
+}
+
+:deep(.el-button--success) {
+  background: transparent;
+  border: 1px solid #13ce66;
+  color: #13ce66;
+  
+  &:hover {
+    background: rgba(19, 206, 102, 0.1);
   }
   
   &:disabled {

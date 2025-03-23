@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 //import { encrypt, decrypt } from '@/utils/crypto' // 添加加密工具
+import axios from 'axios'
 
 type UserRole = 'user' | 'auditor' | 'admin'
 export type verificationstate = 'NOT_SUBMITTED' | 'VERIFIED' | 'PENDING_REVIEW'
@@ -78,21 +79,40 @@ export const useUserStore = defineStore('user', {
       localStorage.setItem('userProfile', JSON.stringify(this.profile))
     },
 
-    // 检查用户名是否存在 (带取消功能)
-    // async checkUsernameExists(username: string, signal?: AbortSignal) {
-    //   try {
-    //     const res = await fetch(`/api/user/exists/${encodeURIComponent(username)}`, {
-    //       signal
-    //     })
-        
-    //     if (!res.ok) throw new Error('Check failed')
-    //     return await res.json()
-    //   } catch (error) {
-    //     if ((error as any).name !== 'AbortError') {
-    //       console.error('Username check error:', error)
-    //     }
-    //     return false
-    //   }
-    // }
+    // 绑定钱包
+    async bindWallet(walletAddress: string) {
+      try {
+        const response = await axios.post('/api/bind-web3-address', { address: walletAddress });
+        if (response.data.success) {
+          if (this.profile) {
+            this.profile.walletAddress = walletAddress;
+            localStorage.setItem('userProfile', JSON.stringify(this.profile));
+          }
+          return true;
+        }
+        return false;
+      } catch (error) {
+        console.error('绑定钱包失败:', error);
+        return false;
+      }
+    },
+    
+    // 解绑钱包
+    async unbindWallet() {
+      try {
+        const response = await axios.post('/api/unbind-wallet');
+        if (response.data.success) {
+          if (this.profile) {
+            this.profile.walletAddress = '';
+            localStorage.setItem('userProfile', JSON.stringify(this.profile));
+          }
+          return true;
+        }
+        return false;
+      } catch (error) {
+        console.error('解绑钱包失败:', error);
+        return false;
+      }
+    }
   }
 })

@@ -514,6 +514,8 @@
                 </el-button>
             </template>
         </el-dialog>
+
+        <WalletBinding />
     </div>
 </template>
 
