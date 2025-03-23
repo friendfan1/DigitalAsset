@@ -10,10 +10,12 @@
             <router-link to="/access" class="nav-item">资产管理</router-link>
             <router-link to="/asset/trade" class="nav-item">资产交易</router-link>
             <router-link to="/asset/cert" class="nav-item">资产存证</router-link>
+            <router-link v-if="hasCertifierRole" to="/asset/certification" class="nav-item">资产认证</router-link>
         </div>
         <div v-if="authStore.isLoggedIn && authStore.profile?.role==='admin'" class="nav-main">
             <router-link to="/verify" class="nav-item">企业认证审核</router-link>
             <router-link to="/admin/roles" class="nav-item">权限管理</router-link>
+            <router-link v-if="hasCertifierRole" to="/asset/certification" class="nav-item">资产认证</router-link>
         </div>
 
         <!-- 右侧用户功能区 -->
@@ -55,14 +57,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '@/stores/user';
 import { User, SwitchButton } from '@element-plus/icons-vue';
 import defaultAvatar from '@/assets/default-avatar.svg';
+import { hasBlockchainRole } from '@/utils/permission';
 
 const router = useRouter();
 const authStore = useUserStore();
+const hasCertifierRole = ref(false);
+
+const checkCertifierRole = async () => {
+  if (authStore.isLoggedIn) {
+    hasCertifierRole.value = await hasBlockchainRole('CERTIFIER_ROLE');
+  } else {
+    hasCertifierRole.value = false;
+  }
+};
+
+onMounted(checkCertifierRole);
+
+watch(() => authStore.isLoggedIn, checkCertifierRole);
+watch(() => authStore.profile?.walletAddress, checkCertifierRole);
 
 const goToUserProfile = () => {
     if (authStore.profile?.role === 'admin') {

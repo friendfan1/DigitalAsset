@@ -2,7 +2,7 @@
    import { Web3RoleService } from '@/services/Web3RoleService';
    import { useUserStore } from '@/stores/user';
    
-   // 检查用户是否拥有某个区块链角色
+
    export async function hasBlockchainRole(roleName: string): Promise<boolean> {
      const userStore = useUserStore();
      const walletAddress = userStore.profile?.walletAddress;

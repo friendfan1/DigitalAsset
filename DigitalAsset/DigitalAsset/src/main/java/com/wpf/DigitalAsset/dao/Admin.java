@@ -19,6 +19,8 @@ public class Admin implements UserDetails {
     private String adminName;
     @Column(name = "admin_password")
     private String adminPassword;
+    @Column(name = "wallet_address")
+    private String walletAddress;
 
     public String getAdminName() {
         return adminName;

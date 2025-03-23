@@ -239,6 +239,7 @@ public class UserController {
                 safeInfo.put("role", "admin");
                 safeInfo.put("createdAt", "2025-03-13 15:02:48");
                 safeInfo.put("USCC", "admin");
+                safeInfo.put("walletAddress",actualAdmin.getWalletAddress());
                 safeInfo.put("token", token);
                 safeInfo.put("verifications","admin");
                 response.put("userInfo", safeInfo);

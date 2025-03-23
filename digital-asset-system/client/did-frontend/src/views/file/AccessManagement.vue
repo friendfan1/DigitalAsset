@@ -337,13 +337,7 @@
             :key="index"
             class="approver-input"
           >
-            <input
-              v-model="certifyRequest.approvers[index]"
-              placeholder="输入审批者地址"
-            />
-            <button @click="removeApprover(index)">移除</button>
           </div>
-          <button @click="addApprover">添加审批者</button>
         </div>
 
         <button
@@ -596,7 +590,10 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import FileUpload from '@/components/upload/FileUpload.vue'
 // 导入Element Plus图标组件
 import { Document, Loading, PictureFilled } from '@element-plus/icons-vue'
+import axios from 'axios'
+import { useUserStore } from '@/stores/user'
 
+const userStore = useUserStore()
 const ipfs = create({
   url: import.meta.env.VITE_IPFS_API_URL  //  自动注入环境变量
 })
@@ -608,17 +605,6 @@ const tabs = [
   { id: 'certify', label: '资产认证' }
 ]
 const activeTab = ref('assets')
-
-// 资产登记相关状态
-const selectedFile = ref<File | null>(null)
-const enableEncryption = ref(true)
-const assetDescription = ref('')
-const assetCategory = ref('')
-const isRegistering = ref(false)
-const registrationResult = ref<{
-  cid: string
-  txHash: string
-} | null>(null)
 
 // 资产认证相关状态
 const certifyRequest = ref<CertificationRequest>({
@@ -635,96 +621,42 @@ const errorMessage = ref('')
 const isCertifyFormValid = computed(() => {
   return (
     certifyRequest.value.tokenId > 0 &&
-    certifyRequest.value.comment.trim() !== '' &&
-    certifyRequest.value.approvers.every(a => a.trim() !== '')
+    certifyRequest.value.comment.trim() !== ''
   )
 })
 
-// 文件处理
-const handleFileSelect = (e: Event) => {
-  const input = e.target as HTMLInputElement
-  if (input.files?.length) {
-    selectedFile.value = input.files[0]
-  }
-}
+// // 资产认证处理
+// const addApprover = () => {
+//   certifyRequest.value.approvers.push('')
+// }
 
-const handleFileDrop = (e: DragEvent) => {
-  e.preventDefault()
-  if (e.dataTransfer?.files.length) {
-    selectedFile.value = e.dataTransfer.files[0]
-  }
-}
-
-// 资产登记处理
-const handleRegistration = async () => {
-  if (!selectedFile.value) return;
-
-  try {
-    isRegistering.value = true;
-    errorMessage.value = '';
-
-    const service = await getDigitalAssetService();
-    
-    // 添加日志
-    console.log('开始注册资产...');
-    console.log('文件大小:', selectedFile.value.size);
-    console.log('文件类型:', selectedFile.value.type);
-    console.log('加密选项:', enableEncryption.value);
-    console.log('当前账户:', await service.getCurrentAddress());
-    console.log('合约地址:', service.getContractAddress());
-    
-    // 可以考虑添加这些选项提高成功率
-    const options = { gasLimit: 3000000 }; // 根据您的合约调整
-    
-    const result = await service.registerAsset(
-      selectedFile.value, 
-      {
-        description: assetDescription.value,
-        category: assetCategory.value,
-        enableEncryption: enableEncryption.value
-      }
-    );
-    
-    console.log('注册成功:', result);
-    registrationResult.value = {
-      cid: 'cid' in result ? result.cid.toString() : '',
-      txHash: 'tokenId' in result && result.tokenId !== null ? 
-             (result as any).txHash : 
-             '暂无交易哈希（跳过区块链注册）'
-    };
-
-    // 重置表单
-    selectedFile.value = null;
-    assetDescription.value = '';
-    assetCategory.value = '';
-  } catch (error) {
-    console.error('注册失败:', error);
-    handleServiceError(error);
-  } finally {
-    isRegistering.value = false;
-  }
-};
-
-// 资产认证处理
-const addApprover = () => {
-  certifyRequest.value.approvers.push('')
-}
-
-const removeApprover = (index: number) => {
-  certifyRequest.value.approvers.splice(index, 1)
-}
+// const removeApprover = (index: number) => {
+//   certifyRequest.value.approvers.splice(index, 1)
+// }
 
 const handleCertification = async () => {
   try {
     isCertifying.value = true
     errorMessage.value = ''
 
-    const service = await getDigitalAssetService()
+    const response = await axios.post('/api/certification/request', {
+      tokenId: Number(certifyRequest.value.tokenId),
+      comment: certifyRequest.value.comment,
+      approvers: certifyRequest.value.approvers,
+      requesterAddress: userStore.profile?.walletAddress
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${userStore.profile?.token}`
+      }
+    }
+  )
 
-    await service.certifyAsset({
-      ...certifyRequest.value,
-      tokenId: Number(certifyRequest.value.tokenId)
-    })
+    if(response.data.success) {
+      ElMessage.success('资产认证申请提交成功')
+    } else {
+      ElMessage.error(response.data.message || '资产认证申请失败')
+    }
 
     // 重置表单
     certifyRequest.value = { tokenId: 0, comment: '', approvers: [''] }
@@ -970,26 +902,6 @@ const handleMediaError = (e: Event) => {
   ElMessage.error('媒体加载失败，可能的原因：IPFS网关连接问题或内容结构不正确');
 };
 
-// 获取文件图标
-const getFileIcon = (fileType: string): string => {
-  if (fileType.startsWith('image/')) {
-    return 'el-icon-picture';
-  } else if (fileType.startsWith('video/')) {
-    return 'el-icon-video-camera';
-  } else if (fileType.startsWith('audio/')) {
-    return 'el-icon-headset';
-  } else if (fileType === 'application/pdf') {
-    return 'el-icon-document';
-  } else if (fileType.includes('word')) {
-    return 'el-icon-document';
-  } else if (fileType.includes('excel') || fileType.includes('spreadsheet')) {
-    return 'el-icon-document';
-  } else if (fileType.includes('presentation') || fileType.includes('powerpoint')) {
-    return 'el-icon-document';
-  } else {
-    return 'el-icon-document';
-  }
-};
 
 // 添加回格式化文件大小函数
 const formatFileSize = (size: number): string => {
@@ -1101,12 +1013,6 @@ const checkRole = async () => {
   const rbacService = new RBACService(provider, signer);
   const address = await signer.getAddress();
   
-  // 使用静态方法检查权限
-  const rbacContract = RBAC__factory.connect(
-    CONTRACT_ADDRESSES.RBAC,
-    signer
-  );
-  
   hasRegistrarRole.value = await rbacService.hasRole(
     'REGISTRAR_ROLE',
     address
@@ -1114,12 +1020,6 @@ const checkRole = async () => {
   console.log('是否拥有注册权限:', hasRegistrarRole.value);
 };
 
-// 添加辅助函数
-const shortenCid = (cid?: string): string => {
-  if (!cid) return '';
-  if (cid.length <= 16) return cid;
-  return `${cid.substring(0, 8)}...${cid.substring(cid.length - 8)}`;
-};
 
 // 添加处理方法
 const handleUploadSuccess = async (result: any) => {
@@ -1455,6 +1355,14 @@ const removeFileTypeFilter = (type: string) => {
 }
 
 const getFileTypeLabel = (type: string) => {
+  // 处理筛选选项值
+  if (type === 'image') return '图片'
+  if (type === 'document') return '文档'
+  if (type === 'video') return '视频'
+  if (type === 'audio') return '音频'
+  if (type === 'other') return '其他'
+  
+  // 处理MIME类型
   if (type.startsWith('image/')) return '图片'
   if (type.startsWith('video/')) return '视频'
   if (type.startsWith('audio/')) return '音频'
@@ -1526,11 +1434,6 @@ const handleSort = (params: any) => {
   } else {
     sortOption.value = '';
   }
-};
-
-const handleImageLoadError = () => {
-  console.error('图片加载失败:', assetPreviewUrl.value);
-  ElMessage.error('图片加载失败，可能的原因：IPFS网关连接问题或CID无效');
 };
 
 const retryLoadImage = async () => {

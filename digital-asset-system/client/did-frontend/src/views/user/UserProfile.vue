@@ -547,8 +547,8 @@ import {
   CircleCheck,
   Wallet
 } from '@element-plus/icons-vue';
-import WalletConnectionPanel from '@/components/web3/WalletConnectionPanel.vue';
-import StakeConfirmation from '@/components/web3/StakeConfirmation.vue';
+// import WalletConnectionPanel from '@/components/web3/WalletConnectionPanel.vue';
+// import StakeConfirmation from '@/components/web3/StakeConfirmation.vue';
 import DIDGenerationResult from '@/components/web3/DIDGenerationResult.vue';
 import type { DIDDocument } from '@/types/web3';
 import AddressDisplay from '@/components/common/AddressDisplay.vue'

@@ -15,7 +15,7 @@ import { ElMessage } from 'element-plus';
 import { RBAC__factory } from '@/contracts/types';
 import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
-
+import axios from 'axios';
 type AssetRegistrationParams = {
   file: File;
   encrypt?: boolean;
@@ -2375,6 +2375,113 @@ export class DigitalAssetService extends BaseWeb3Service {
         total: idsToDelete.length,
         details: []
       };
+    }
+  }
+
+  async getAssetsForCertification(token:string, page = 1, pageSize = 10) {
+    // 获取所有可认证的资产
+    try {
+      // 从后端获取待认证的资产请求列表
+      const response = await axios.get('/api/certification/pending', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || '获取待认证列表失败');
+      }
+      
+      const pendingRequests = response.data.data;
+      const totalCount = pendingRequests.length;
+      
+      // 处理当前页的资产
+      const startIndex = (page - 1) * pageSize;
+      const endIndex = Math.min(startIndex + pageSize, totalCount);
+      const currentPageRequests = pendingRequests.slice(startIndex, endIndex);
+      
+      // 加载详细信息
+      const assets = [];
+      for (const request of currentPageRequests) {
+        try {
+          const tokenId = request.tokenId.toString();
+          const metadata = await this.contract.getAssetMetadata(tokenId);
+          const assetDetails = await this.formatAssetDetails(tokenId, metadata);
+          
+          // 将认证请求信息合并到资产详情中
+          assetDetails.certificationRequest = {
+            id: request.id,
+            reason: request.reason,
+            requestTime: request.requestTime,
+            requesterAddress: request.requesterAddress,
+            status: request.status
+          };
+          
+          assets.push(assetDetails);
+        } catch (error) {
+          console.error(`获取资产${request.tokenId}详情失败:`, error);
+        }
+      }
+      
+      return {
+        totalCount,
+        assets
+      };
+    } catch (error) {
+      console.error('获取待认证资产列表失败:', error);
+      throw error;
+    }
+  }
+
+  // 添加到DigitalAssetService类中
+  private async formatAssetDetails(tokenId: string, metadata: any): Promise<any> {
+    try {
+      // 获取所有者
+      const owner = await this.contract.ownerOf(tokenId);
+      
+      // 尝试从IPFS获取扩展元数据
+      let extendedMetadata = {
+        fileName: `Asset-${tokenId}`,
+        fileSize: 0,
+        fileType: 'unknown',
+        description: '',
+        category: ''
+      };
+      
+      if (metadata.cid) {
+        try {
+          const ipfsData = await this.fetchFromIPFS(metadata.cid);
+          if (ipfsData) {
+            extendedMetadata = {
+              ...extendedMetadata,
+              fileName: ipfsData.fileName || ipfsData.name || extendedMetadata.fileName,
+              fileSize: ipfsData.fileSize || ipfsData.size || 0,
+              fileType: ipfsData.fileType || ipfsData.type || 'unknown',
+              description: ipfsData.description || '',
+              category: ipfsData.category || ''
+            };
+          }
+        } catch (error) {
+          console.log(`无法获取资产${tokenId}的IPFS元数据:`, error);
+        }
+      }
+      
+      return {
+        tokenId,
+        cid: metadata.cid,
+        metadata: extendedMetadata,
+        contentHash: metadata.contentHash || '',
+        registrant: metadata.registrant,
+        registrationDate: new Date(Number(metadata.registrationDate) * 1000),
+        isCertified: metadata.isCertified,
+        encryptedKey: metadata.encryptedKey || '',
+        version: metadata.version ? metadata.version.toString() : '1',
+        owner,
+        certificationHistory: []
+      };
+    } catch (error) {
+      console.error(`格式化资产${tokenId}详情失败:`, error);
+      throw error;
     }
   }
 }

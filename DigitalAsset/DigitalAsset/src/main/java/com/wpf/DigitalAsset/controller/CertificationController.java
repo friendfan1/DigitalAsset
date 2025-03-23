@@ -99,10 +99,10 @@ public class CertificationController {
         Map<String, Object> response = new HashMap<>();
         
         try {
-            List<AssetCertificationRequest> requests = certificationService.getPendingRequests();
+            List<AssetCertificationRequest> assets = certificationService.getPendingRequests();
             
             response.put("success", true);
-            response.put("data", requests);
+            response.put("data", assets);
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {

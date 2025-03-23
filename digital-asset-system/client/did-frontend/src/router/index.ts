@@ -73,6 +73,12 @@ const routes = [
     name: 'Web3RoleManagement',
     component: () => import('@/views/admin/AdminRoleManagement.vue'),
     meta: { requiresAuth: true, requiresBlockchainRole: 'ADMIN_ROLE' }
+  },
+  {
+    path: '/asset/certification',
+    name: 'AssetCertification',
+    component: () => import('@/views/file/AssetCertification.vue'),
+    meta: { requiresAuth: true, requiresBlockchainRole: 'CERTIFIER_ROLE' }
   }
 ];
 

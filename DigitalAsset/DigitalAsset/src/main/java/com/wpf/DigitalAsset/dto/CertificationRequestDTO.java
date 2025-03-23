@@ -11,7 +11,5 @@ public class CertificationRequestDTO {
     private Long tokenId;         // 资产的tokenId
     private String reason;        // 申请认证的理由
     private String requesterAddress; // 申请者钱包地址
-    
-    // 可能的附加字段，根据业务需要
     private String additionalInfo; // 其他补充信息
 } 
