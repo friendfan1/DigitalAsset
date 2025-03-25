@@ -189,11 +189,10 @@ const handleFilesSelected = (files: File[]) => {
     return true;
   });
 
-  // 添加到文件列表（不跟踪进度，只有状态）
   const newFiles = validFiles.map(file => ({
     id: uuidv4(),
     file,
-    progress: 0, // 进度将不会更新
+    progress: 0,
     status: 'idle' as const,
     error: ''
   }));

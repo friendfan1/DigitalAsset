@@ -1,17 +1,16 @@
 package com.wpf.DigitalAsset.service;
 
-import com.wpf.DigitalAsset.dao.AssetCertificationRequest;
-import com.wpf.DigitalAsset.dao.AssetCertificationRequestRepository;
-import com.wpf.DigitalAsset.dao.CertificationRecord;
-import com.wpf.DigitalAsset.dao.CertificationRecordRepository;
+import com.wpf.DigitalAsset.dao.*;
 import com.wpf.DigitalAsset.dto.CertificationActionDTO;
 import com.wpf.DigitalAsset.dto.CertificationRequestDTO;
+import com.wpf.DigitalAsset.dto.CertifierDTO;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Logger;
@@ -26,27 +25,20 @@ public class CertificationServiceImpl implements CertificationService {
 
     @Autowired
     private AssetCertificationRequestRepository requestRepository;
-
     @Autowired
     private CertificationRecordRepository recordRepository;
-
-    // 在实际应用中，这里还可能注入区块链服务以完成上链操作
-    // @Autowired
-    // private BlockchainService blockchainService;
+    @Autowired
+    private UserWeb3RoleRepository userWeb3RoleRepository;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private AdminRepository adminRepository;
 
     @Override
     @Transactional
     public AssetCertificationRequest createRequest(CertificationRequestDTO requestDTO) {
         logger.info("创建认证请求: " + requestDTO.getTokenId());
-
-        // 检查是否已存在该资产的未决认证请求
-        List<AssetCertificationRequest> existingRequests =
-                requestRepository.findByTokenIdAndStatus(requestDTO.getTokenId(), "PENDING");
-
-        if (!existingRequests.isEmpty()) {
-            logger.warning("已存在待处理的认证请求: " + requestDTO.getTokenId());
-            throw new IllegalStateException("该资产已有待处理的认证请求");
-        }
+        logger.info("请求人地址" + requestDTO.getRequester());
 
         // 检查资产是否已认证
         if (recordRepository.existsByTokenId(requestDTO.getTokenId())) {
@@ -57,12 +49,18 @@ public class CertificationServiceImpl implements CertificationService {
         // 创建新的认证请求
         AssetCertificationRequest request = new AssetCertificationRequest();
         request.setTokenId(requestDTO.getTokenId());
-        request.setRequesterAddress(requestDTO.getRequesterAddress());
+        request.setRequester(requestDTO.getRequester());
         request.setReason(requestDTO.getReason());
-        request.setRequestTime(LocalDateTime.now());
-        request.setStatus("PENDING");
+        request.setCreatedAt(LocalDateTime.now());
+        request.setUpdatedAt(LocalDateTime.now());
+        request.setStatus(AssetCertificationRequest.RequestStatus.PENDING);
+        request.setCertifierAddress(requestDTO.getCertifierAddress());
+        logger.info("Certifier:"+request.getCertifierAddress());
 
-        return requestRepository.save(request);
+        logger.info("把东西存进去");
+        requestRepository.save(request);
+
+        return request;
     }
 
     @Override
@@ -70,16 +68,16 @@ public class CertificationServiceImpl implements CertificationService {
         logger.info("获取用户认证请求: " + requesterAddress + ", 状态: " + status);
 
         if (status != null && !status.isEmpty()) {
-            return requestRepository.findByRequesterAddressAndStatus(requesterAddress, status);
+            return requestRepository.findByRequesterAndStatus(requesterAddress, status);
         } else {
-            return requestRepository.findByRequesterAddress(requesterAddress);
+            return requestRepository.findByRequester(requesterAddress);
         }
     }
 
     @Override
     public List<AssetCertificationRequest> getPendingRequests() {
         logger.info("获取所有待处理的认证请求");
-        return requestRepository.findByStatus("PENDING");
+        return requestRepository.findByStatus(AssetCertificationRequest.RequestStatus.PENDING);
     }
 
     @Override
@@ -92,15 +90,14 @@ public class CertificationServiceImpl implements CertificationService {
                 .orElseThrow(() -> new EntityNotFoundException("找不到ID为 " + requestId + " 的认证请求"));
 
         // 检查请求状态
-        if (!"PENDING".equals(request.getStatus())) {
+        if (!AssetCertificationRequest.RequestStatus.PENDING.equals(request.getStatus())) {
             throw new IllegalStateException("只能批准待处理的请求");
         }
 
         // 更新请求状态
-        request.setStatus("APPROVED");
+        request.setStatus(AssetCertificationRequest.RequestStatus.APPROVED);
         request.setCertifierAddress(actionDTO.getCertifierAddress());
         request.setCertificationTime(LocalDateTime.now());
-        request.setComments(actionDTO.getComments());
         request.setCertificateCid(actionDTO.getCertificateCid());
 
         requestRepository.save(request);
@@ -108,10 +105,6 @@ public class CertificationServiceImpl implements CertificationService {
         // 创建认证记录
         CertificationRecord record = new CertificationRecord(request);
         record.setValidityPeriod(actionDTO.getValidityPeriod());
-
-        // 在实际应用中，这里应该调用区块链服务将认证信息上链
-        // String txHash = blockchainService.recordCertification(request.getTokenId(), actionDTO.getCertifierAddress());
-        // record.setTransactionHash(txHash);
 
         return recordRepository.save(record);
     }
@@ -126,15 +119,14 @@ public class CertificationServiceImpl implements CertificationService {
                 .orElseThrow(() -> new EntityNotFoundException("找不到ID为 " + requestId + " 的认证请求"));
 
         // 检查请求状态
-        if (!"PENDING".equals(request.getStatus())) {
+        if (!AssetCertificationRequest.RequestStatus.PENDING.equals(request.getStatus())) {
             throw new IllegalStateException("只能拒绝待处理的请求");
         }
 
         // 更新请求状态
-        request.setStatus("REJECTED");
+        request.setStatus(AssetCertificationRequest.RequestStatus.REJECTED);
         request.setCertifierAddress(actionDTO.getCertifierAddress());
         request.setCertificationTime(LocalDateTime.now());
-        request.setComments(actionDTO.getComments());
 
         requestRepository.save(request);
     }
@@ -155,5 +147,58 @@ public class CertificationServiceImpl implements CertificationService {
     public List<CertificationRecord> getCertifierRecords(String certifierAddress) {
         logger.info("获取认证者的认证记录: " + certifierAddress);
         return recordRepository.findByCertifierAddress(certifierAddress);
+    }
+
+    @Override
+    public List<CertifierDTO> getAllCertifiers() {
+        List<CertifierDTO> response = new ArrayList<>();
+        List<UserWeb3Role> userWeb3RoleList = userWeb3RoleRepository.findByRoleName("CERTIFIER_ROLE");
+        for (UserWeb3Role userWeb3Role:userWeb3RoleList){
+            if(userRepository.findByWeb3Address(userWeb3Role.getWalletAddress()).isPresent()){
+                CertifierDTO certifierDTO = new CertifierDTO(userWeb3Role.getWalletAddress(),userRepository.findByWeb3Address(userWeb3Role.getWalletAddress()).get().getUsername(),true);
+                response.add(certifierDTO);
+                logger.info("地址:"+certifierDTO.getAddress());
+            }
+            if(adminRepository.findByWalletAddress(userWeb3Role.getWalletAddress()).isPresent()){
+                CertifierDTO certifierDTO = new CertifierDTO(userWeb3Role.getWalletAddress(),adminRepository.findByWalletAddress(userWeb3Role.getWalletAddress()).get().getUsername(),true);
+                response.add(certifierDTO);
+                logger.info("地址:"+certifierDTO.getAddress());
+            }
+
+        }
+        return response;
+    }
+
+    @Override
+    public void saveCertificationRequest(CertificationRequestDTO requestDTO) {
+
+    }
+
+    @Override
+    public List<CertificationRequestDTO> getPendingCertificationRequests(String certifierAddress) {
+        List<AssetCertificationRequest> assetCertificationRequestList = requestRepository.findByCertifierAddress(certifierAddress);
+        return assetCertificationRequestList.stream()
+                .map(this::convertToDTO)
+                .toList();
+    }
+
+    @Override
+    public void saveCertificationRequest(Long requestId, Object certifier, String signature) {
+
+    }
+
+
+    private CertificationRequestDTO convertToDTO(AssetCertificationRequest request) {
+        CertificationRequestDTO dto = new CertificationRequestDTO();
+        dto.setRequestId(request.getId());
+        dto.setTokenId(request.getTokenId());
+        dto.setReason(request.getReason());
+        dto.setRequester(request.getRequester());
+        dto.setRequestTime(request.getCreatedAt().toString());
+        dto.setStatus(String.valueOf(request.getStatus()));
+        dto.setCertifierAddress(request.getCertifierAddress());
+
+
+        return dto;
     }
 }

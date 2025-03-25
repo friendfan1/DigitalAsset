@@ -2,8 +2,9 @@ package com.wpf.DigitalAsset.dto;
 
 /**
  * API响应数据传输对象
+ * @param <T> 响应数据的类型
  */
-public class ApiResponse {
+public class ApiResponse<T> {
     
     /**
      * 操作是否成功
@@ -18,7 +19,7 @@ public class ApiResponse {
     /**
      * 响应数据
      */
-    private Object data;
+    private T data;
     
     /**
      * 默认构造函数
@@ -32,7 +33,7 @@ public class ApiResponse {
      * @param message 消息
      * @param data 数据
      */
-    public ApiResponse(boolean success, String message, Object data) {
+    public ApiResponse(boolean success, String message, T data) {
         this.success = success;
         this.message = message;
         this.data = data;
@@ -74,7 +75,7 @@ public class ApiResponse {
      * 获取数据
      * @return 数据
      */
-    public Object getData() {
+    public T getData() {
         return data;
     }
     
@@ -82,7 +83,7 @@ public class ApiResponse {
      * 设置数据
      * @param data 数据
      */
-    public void setData(Object data) {
+    public void setData(T data) {
         this.data = data;
     }
 } 

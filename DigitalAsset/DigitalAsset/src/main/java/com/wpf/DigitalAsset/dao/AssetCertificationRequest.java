@@ -2,59 +2,142 @@ package com.wpf.DigitalAsset.dao;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * 资产认证请求实体类
+ * 用于记录数字资产的认证请求信息
  */
 @Entity
-@Table(name = "asset_certification_request")
+@Table(name = "asset_certification_requests")
+@EntityListeners(AuditingEntityListener.class)
 @Data
 public class AssetCertificationRequest {
+
+    public AssetCertificationRequest() {
+
+    }
+
+    /**
+     * 认证请求状态枚举
+     */
+    public enum RequestStatus {
+        PENDING("待处理"),
+        APPROVED("已批准"),
+        REJECTED("已拒绝"),
+        COMPLETED("已完成");
+        
+        private final String description;
+        
+        RequestStatus(String description) {
+            this.description = description;
+        }
+        
+        public String getDescription() {
+            return description;
+        }
+    }
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(name = "token_id", nullable = false)
+    @Column(nullable = false, name = "token_id")
     private Long tokenId;
     
-    @Column(name = "requester_address", nullable = false, length = 42)
-    private String requesterAddress;
-    
-    @Column(name = "request_time", nullable = false)
-    private LocalDateTime requestTime;
-    
-    @Column(name = "reason", columnDefinition = "TEXT")
+    /**
+     * 请求原因（PENDING状态）或拒绝原因（REJECTED状态）
+     */
+    @Column(nullable = false, length = 1000)
     private String reason;
     
-    @Column(name = "status", nullable = false, length = 20)
-    private String status = "PENDING"; // PENDING, APPROVED, REJECTED
+    @Column(nullable = false, length = 42, name = "requester_address")
+    private String requester;
     
-    @Column(name = "certifier_address", length = 42)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RequestStatus status = RequestStatus.PENDING;
+    
+    @Column(length = 1000, name = "additional_info")
+    private String additionalInfo;
+    
+    @Column(length = 42, name = "certifier_address")
     private String certifierAddress;
     
     @Column(name = "certification_time")
     private LocalDateTime certificationTime;
     
-    @Column(name = "certificate_cid", length = 100)
+    @Column(length = 100, name = "certificate_cid")
     private String certificateCid;
     
-    @Column(name = "comments", columnDefinition = "TEXT")
-    private String comments;
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
     
-    // 默认构造函数
-    public AssetCertificationRequest() {
-        this.requestTime = LocalDateTime.now();
+    @LastModifiedDate
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+
+    /**
+     * 检查请求是否可处理
+     */
+    public boolean isProcessable() {
+        return status == RequestStatus.PENDING;
     }
     
-    // 初始化请求时的快捷构造函数
-    public AssetCertificationRequest(Long tokenId, String requesterAddress, String reason) {
-        this.tokenId = tokenId;
-        this.requesterAddress = requesterAddress;
+    /**
+     * 批准认证请求
+     */
+    public void approve(String certifierAddress) {
+        if (!isProcessable()) {
+            throw new IllegalStateException("无法处理非待处理状态的请求");
+        }
+        this.status = RequestStatus.APPROVED;
+        this.certifierAddress = certifierAddress;
+        this.certificationTime = LocalDateTime.now();
+    }
+    
+    /**
+     * 拒绝认证请求
+     */
+    public void reject(String certifierAddress, String reason) {
+        if (!isProcessable()) {
+            throw new IllegalStateException("无法处理非待处理状态的请求");
+        }
+        this.status = RequestStatus.REJECTED;
+        this.certifierAddress = certifierAddress;
         this.reason = reason;
-        this.requestTime = LocalDateTime.now();
-        this.status = "PENDING";
+        this.certificationTime = LocalDateTime.now();
     }
+    
+    /**
+     * 完成认证请求
+     */
+    public void complete(String certificateCid) {
+        if (status != RequestStatus.APPROVED) {
+            throw new IllegalStateException("只有已批准的请求才能完成");
+        }
+        this.status = RequestStatus.COMPLETED;
+        this.certificateCid = certificateCid;
+    }
+    
+    /**
+     * 初始化请求时的构造函数
+     */
+    public AssetCertificationRequest(Long tokenId, String requester, String reason) {
+        this.tokenId = tokenId;
+        this.requester = requester;
+        this.reason = reason;
+        this.status = RequestStatus.PENDING;
+    }
+
+
+
 } 

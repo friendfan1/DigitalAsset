@@ -14,17 +14,17 @@ public interface AssetCertificationRequestRepository extends JpaRepository<Asset
     /**
      * 根据请求者地址和状态查询请求
      */
-    List<AssetCertificationRequest> findByRequesterAddressAndStatus(String requesterAddress, String status);
+    List<AssetCertificationRequest> findByRequesterAndStatus(String requesterAddress, String status);
     
     /**
      * 根据请求者地址查询所有请求
      */
-    List<AssetCertificationRequest> findByRequesterAddress(String requesterAddress);
+    List<AssetCertificationRequest> findByRequester(String requesterAddress);
     
     /**
      * 根据状态查询请求
      */
-    List<AssetCertificationRequest> findByStatus(String status);
+    List<AssetCertificationRequest> findByStatus(AssetCertificationRequest.RequestStatus status);
     
     /**
      * 根据资产TokenID查询请求
@@ -34,5 +34,9 @@ public interface AssetCertificationRequestRepository extends JpaRepository<Asset
     /**
      * 根据资产TokenID和状态查询请求
      */
-    List<AssetCertificationRequest> findByTokenIdAndStatus(Long tokenId, String status);
+    List<AssetCertificationRequest> findByTokenIdAndStatus(Long tokenId, AssetCertificationRequest.RequestStatus status);
+
+    boolean existsByTokenIdAndStatus(Long requestId, AssetCertificationRequest.RequestStatus requestStatus);
+
+    List<AssetCertificationRequest> findByCertifierAddress(String requesterAddress);
 } 

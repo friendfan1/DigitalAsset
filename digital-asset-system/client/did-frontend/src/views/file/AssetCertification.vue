@@ -72,7 +72,7 @@
     <!-- 分页控件 -->
     <div class="pagination-container">
       <el-pagination
-        v-model:current-page="currentPage"
+        v-model:currentPage="currentPage"
         v-model:page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
@@ -83,115 +83,13 @@
     </div>
 
     <!-- 资产详情对话框 -->
-    <el-dialog
-      v-model="assetDetailsDialogVisible"
-      :title="assetDetails?.metadata?.fileName || '资产详情'"
-      width="70%"
-      destroy-on-close
+    <asset-detail-dialog
+      v-if="assetDetails"
+      v-model:visible="assetDetailsDialogVisible"
+      :asset-details="assetDetails"
+      :asset-preview-url="assetPreviewUrl"
+      @close="closeAssetDetails"
     >
-      <div class="asset-details-content" v-if="assetDetails">
-        <div class="asset-info">
-          <div class="asset-main">
-            <span class="asset-name">{{ assetDetails.metadata.fileName }}</span>
-            <el-tag size="small" type="info">{{ assetDetails.metadata.category }}</el-tag>
-            <el-tag 
-              size="small" 
-              :type="assetDetails.isCertified ? 'success' : 'warning'"
-              style="margin-left: 10px;"
-            >
-              {{ assetDetails.isCertified ? '已认证' : '未认证' }}
-            </el-tag>
-          </div>
-          
-          <!-- 资产基本信息 -->
-          <el-descriptions :column="3" border>
-            <el-descriptions-item label="资产ID">{{ assetDetails.tokenId }}</el-descriptions-item>
-            <el-descriptions-item label="文件大小">{{ formatFileSize(assetDetails.metadata.fileSize || 0) }}</el-descriptions-item>
-            <el-descriptions-item label="文件类型">{{ assetDetails.metadata.fileType }}</el-descriptions-item>
-            <el-descriptions-item label="IPFS CID">
-              <el-tooltip content="点击复制" placement="top">
-                <span class="cid" @click="copyToClipboard(assetDetails.cid)">
-                  {{ assetDetails.cid }}
-                </span>
-              </el-tooltip>
-            </el-descriptions-item>
-            <el-descriptions-item label="注册时间">{{ formatDate(assetDetails.registrationDate) }}</el-descriptions-item>
-            <el-descriptions-item label="资产版本">{{ assetDetails.version }}</el-descriptions-item>
-          </el-descriptions>
-          
-          <!-- 认证历史 -->
-          <div class="certification-history" v-if="assetDetails.certificationHistory && assetDetails.certificationHistory.length > 0">
-            <h3>认证历史</h3>
-            <el-timeline>
-              <el-timeline-item
-                v-for="(cert, index) in assetDetails.certificationHistory"
-                :key="index"
-                :timestamp="formatDate(cert.timestamp)"
-                :type="cert.certifier === userWalletAddress ? 'primary' : 'info'"
-              >
-                <div class="cert-info">
-                  <div><strong>认证人：</strong>{{ formatAddress(cert.certifier) }}</div>
-                  <div><strong>评论：</strong>{{ cert.comment }}</div>
-                </div>
-              </el-timeline-item>
-            </el-timeline>
-          </div>
-          
-          <!-- 资产预览 -->
-          <div class="asset-preview">
-            <h3>资产预览</h3>
-            <div class="preview-container">
-              <img 
-                v-if="assetPreviewUrl && isImageFile(assetDetails.metadata.fileType)"
-                :src="assetPreviewUrl" 
-                alt="预览图片" 
-                class="preview-image"
-                @click="showFullImage"
-                @error="handleMediaError"
-              />
-              <iframe
-                v-else-if="assetPreviewUrl && isPdfFile(assetDetails.metadata.fileType)"
-                :src="assetPreviewUrl"
-                type="application/pdf"
-                frameborder="0"
-                class="preview-iframe"
-                @load="iframeLoadFailed = false"
-                @error="iframeLoadFailed = true"
-              ></iframe>
-              <video
-                v-else-if="assetPreviewUrl && isVideoFile(assetDetails.metadata.fileType)"
-                controls
-                :src="assetPreviewUrl" 
-                :type="assetDetails.metadata.fileType"
-                crossorigin="anonymous"
-                @error="handleMediaError"
-                class="preview-video"
-              >
-                您的浏览器不支持视频标签。
-              </video>
-              <audio
-                v-else-if="assetPreviewUrl && isAudioFile(assetDetails.metadata.fileType)"
-                controls
-                :src="assetPreviewUrl" 
-                :type="assetDetails.metadata.fileType"
-                crossorigin="anonymous"
-                @error="handleMediaError"
-                style="width: 100%; margin-bottom: 1rem;"
-              >
-                您的浏览器不支持音频标签。
-              </audio>
-              <div v-else-if="isLoadingPreview" class="loading-preview">
-                <el-icon class="is-loading"><Loading /></el-icon>
-                <span>加载预览中...</span>
-              </div>
-              <div v-else class="no-preview">
-                <el-icon><Document /></el-icon>
-                <span>无法预览此类型的文件</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="assetDetailsDialogVisible = false">关闭</el-button>
@@ -202,7 +100,7 @@
           >认证此资产</el-button>
         </span>
       </template>
-    </el-dialog>
+    </asset-detail-dialog>
 
     <!-- 资产认证对话框 -->
     <el-dialog
@@ -339,6 +237,7 @@ import { DigitalAssetService, type CertificationRequest, getDigitalAssetService 
 import { RBACService, getRBACService } from '@/utils/web3/RBACService';
 import { hasBlockchainRole } from '@/utils/permission';
 import { BrowserProvider } from 'ethers';
+import AssetDetailDialog from '@/components/AssetDetailDialog.vue';
 
 // 用户信息
 const userStore = useUserStore();
@@ -484,10 +383,11 @@ const fetchAssets = async () => {
     }
     
     const digitalAssetServiceSingleton = await getDigitalAssetService();
-    
-    // 使用新的获取待认证资产的方法
+    console.log("token", userStore.profile?.token)
+
     const { assets: assetsData, totalCount } = await digitalAssetServiceSingleton.getAssetsForCertification(
       userStore.profile?.token || '',
+      userStore.profile?.walletAddress || '',
       currentPage.value,
       pageSize.value
     );
@@ -590,8 +490,9 @@ const showAssetDetails = async (asset: Asset) => {
 const generatePreviewUrl = async (asset: Asset) => {
   try {
     isLoadingPreview.value = true;
-    iframeLoadFailed.value = false;
+    iframeLoadFailed.value = false; // 重置iframe加载状态
     
+    // 检查文件类型是否可以预览
     if (!asset.metadata || !asset.metadata.fileType) {
       assetPreviewUrl.value = '';
       isLoadingPreview.value = false;
@@ -607,22 +508,68 @@ const generatePreviewUrl = async (asset: Asset) => {
       return;
     }
     
-    // 导入IPFS配置
+    // 导入所需服务
+    const { getIPFSUrl } = await import('@/utils/ipfs');
     const { ipfsConfig } = await import('@/config/ipfs.config');
+    const { getChunkedFileService } = await import('@/services/ChunkedFileService');
+    
+    // 获取IPFS网关
     const ipfsGateway = window.ipfsGateway || ipfsConfig.gateway;
+    const chunkedService = getChunkedFileService(ipfsGateway);
     
-    // 生成预览URL
-    assetPreviewUrl.value = `${ipfsGateway}${asset.cid}/content`;
+    // 检查是否是分片文件
+    const isChunked = await chunkedService.isChunkedFile(asset.cid);
     
-    // 对视频和音频添加时间戳参数避免缓存问题
-    if (fileType.startsWith('video/') || fileType.startsWith('audio/')) {
-      assetPreviewUrl.value += `?t=${Date.now()}`;
+    if (isChunked) {
+      // 检测到分片文件
+      console.log('检测到分片文件:', asset.cid);
+      
+      // 获取元数据
+      const metadata = await chunkedService.getMetadata(asset.cid);
+      console.log('分片文件元数据:', metadata);
+      
+      // 获取预览模式
+      const previewMode = chunkedService.getPreviewMode(fileType);
+      
+      // 根据预览模式处理
+      if (previewMode === 'stream') {
+        // 视频和音频文件使用流服务
+        assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+        console.log('分片媒体流URL:', assetPreviewUrl.value);
+        ElMessage.info('正在加载媒体流，请稍候...');
+      } else if (previewMode === 'image') {
+        // 图片和PDF，尝试使用流服务直接显示
+        if (fileType.startsWith('image/')) {
+          // 对于图片，先尝试iframe方式查看
+          assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+          console.log('分片图片流URL:', assetPreviewUrl.value);
+          ElMessage.info('正在加载图片...');
+        } else if (fileType === 'application/pdf') {
+          // PDF文件使用流服务
+          assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+          console.log('分片PDF流URL:', assetPreviewUrl.value);
+          ElMessage.info('正在加载PDF...');
+        }
+      } else {
+        // 其他类型文件
+        ElMessage.info('该文件过大，已进行分片存储，请下载后查看');
+        assetPreviewUrl.value = '';
+      }
+    } else {
+      // 不是分片文件，使用标准路径
+      assetPreviewUrl.value = `${ipfsGateway}${asset.cid}/content`;
+      
+      // 对视频和音频添加时间戳参数避免缓存问题
+      if (fileType.startsWith('video/') || fileType.startsWith('audio/')) {
+        assetPreviewUrl.value += `?t=${Date.now()}`;
+      }
+      
+      console.log('标准预览URL:', assetPreviewUrl.value);
     }
-    
   } catch (error) {
     console.error('获取预览失败:', error);
     assetPreviewUrl.value = '';
-    ElMessage.error('预览生成失败');
+    ElMessage.error('预览生成失败: ' + (error instanceof Error ? error.message : String(error)));
   } finally {
     isLoadingPreview.value = false;
   }
@@ -662,7 +609,7 @@ const certifyAsset = async () => {
     
     const request: CertificationRequest = {
       tokenId: Number(selectedAssetForCert.value!.tokenId),
-      comment: certificationForm.value.comment,
+      reason: certificationForm.value.comment,
       approvers: certificationForm.value.additionalCertifiers
     };
     
@@ -701,7 +648,7 @@ const certifyBatchAssets = async () => {
       try {
         const request: CertificationRequest = {
           tokenId: Number(asset.tokenId),
-          comment: batchCertificationForm.value.comment,
+          reason: batchCertificationForm.value.comment,
           approvers: batchCertificationForm.value.additionalCertifiers
         };
         
@@ -792,6 +739,13 @@ const formatFileSize = (size: number) => {
   } else {
     return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
+};
+
+// 添加closeAssetDetails函数
+const closeAssetDetails = () => {
+  assetDetailsDialogVisible.value = false;
+  assetPreviewUrl.value = '';
+  isLoadingPreview.value = true;
 };
 </script>
 

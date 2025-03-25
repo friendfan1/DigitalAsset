@@ -9,6 +9,7 @@ import com.wpf.DigitalAsset.dto.RegisterRequest;
 import com.wpf.DigitalAsset.service.AdminServer;
 import com.wpf.DigitalAsset.service.CompanyVerificationService;
 import com.wpf.DigitalAsset.service.UserService;
+import com.wpf.DigitalAsset.service.Web3RoleService;
 import com.wpf.DigitalAsset.util.TokenManager;
 import com.wpf.DigitalAsset.util.VerificationStatus;
 import jakarta.annotation.security.PermitAll;
@@ -41,6 +42,8 @@ public class UserController {
     private AdminServer adminServer;
     @Autowired
     private CompanyVerificationService companyVerificationService; // 注入公司认证服务
+    @Autowired
+    private Web3RoleService web3RoleService;
     private static final Logger logger = Logger.getLogger(UserController.class.getName());
 
     @GetMapping("/api/public/sendEmail")

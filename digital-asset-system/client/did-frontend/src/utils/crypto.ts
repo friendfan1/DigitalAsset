@@ -50,18 +50,14 @@ export async function hybridEncrypt(
       
       // 使用简化的加密方法(仅用于演示)
       return {
-        encryptedData: content, // 简单示例，实际应加密
-        encryptedAESKey: "示例加密密钥"
+        encryptedData: new Blob([]),
+        encryptedAESKey: "",
+        iv: new Uint8Array(16)
       };
     }
-    
-    // 正常的PGP加密流程
-    // ...现有代码...
-    
-    return {/* 加密结果 */};
   } catch (error) {
     console.error('加密失败:', error);
-    throw new Error(`加密失败: ${error.message}`);
+    throw new Error(`加密失败: ${error as Error}`);
   }
 }
 

@@ -27,7 +27,7 @@ type AssetRegistrationParams = {
 
 export type CertificationRequest = {
   tokenId: number;
-  comment: string;
+  reason: string;
   approvers: string[];
 };
 
@@ -1096,7 +1096,7 @@ export class DigitalAssetService extends BaseWeb3Service {
     const types = {
       Certify: [
         { name: 'tokenId', type: 'uint256' },
-        { name: 'comment', type: 'string' }
+        { name: 'reason', type: 'string' }
       ]
     };
 
@@ -1109,7 +1109,7 @@ export class DigitalAssetService extends BaseWeb3Service {
           types,
           {
             tokenId: request.tokenId,
-            comment: request.comment
+            reason: request.reason
           }
         );
       })
@@ -1118,7 +1118,7 @@ export class DigitalAssetService extends BaseWeb3Service {
     // 3. 调用合约
     const tx = await this.contract.certifyAsset(
       request.tokenId,
-      request.comment,
+      request.reason,
       signatures
     );
 
@@ -2378,13 +2378,16 @@ export class DigitalAssetService extends BaseWeb3Service {
     }
   }
 
-  async getAssetsForCertification(token:string, page = 1, pageSize = 10) {
+  async getAssetsForCertification(token:string, address:string, page = 1, pageSize = 10) {
     // 获取所有可认证的资产
     try {
       // 从后端获取待认证的资产请求列表
       const response = await axios.get('/api/certification/pending', {
         headers: {
           'Authorization': `Bearer ${token}`
+        },
+        params: {
+          certifierAddress: address
         }
       });
       
@@ -2410,10 +2413,10 @@ export class DigitalAssetService extends BaseWeb3Service {
           
           // 将认证请求信息合并到资产详情中
           assetDetails.certificationRequest = {
-            id: request.id,
+            id: request.requestId,
             reason: request.reason,
             requestTime: request.requestTime,
-            requesterAddress: request.requesterAddress,
+            requesterAddress: request.requester,
             status: request.status
           };
           

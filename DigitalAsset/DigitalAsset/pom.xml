@@ -92,18 +92,50 @@
 			<artifactId>json</artifactId>
 			<version>20231013</version>
 		</dependency>
+		<!-- Web3j依赖，用于与以太坊区块链交互 -->
+<!--		<dependency>-->
+<!--			<groupId>org.web3j</groupId>-->
+<!--			<artifactId>core</artifactId>-->
+<!--			<version>4.10.3</version>-->
+<!--		</dependency>-->
+<!--		<dependency>-->
+<!--			<groupId>org.web3j</groupId>-->
+<!--			<artifactId>crypto</artifactId>-->
+<!--			<version>4.10.3</version>-->
+<!--		</dependency>-->
+		<!-- Jakarta Annotation API -->
+		<dependency>
+			<groupId>jakarta.annotation</groupId>
+			<artifactId>jakarta.annotation-api</artifactId>
+			<version>2.1.1</version>
+		</dependency>
 <!--		<dependency>-->
 <!--			<groupId>org.springframework.boot</groupId>-->
 <!--			<artifactId>spring-boot-starter-scheduling</artifactId>-->
 <!--		</dependency>-->
 	</dependencies>
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-			</plugin>
-		</plugins>
-	</build>
+	    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.web3j</groupId>
+                <artifactId>web3j-maven-plugin</artifactId>
+                <version>4.10.3</version>
+                <configuration>
+                    <soliditySourceFiles>
+                        <directory>src/main/resources/contracts</directory>
+                    </soliditySourceFiles>
+                    <outputFormat>java</outputFormat>
+                    <nativeJavaType>true</nativeJavaType>
+<!--                    <output>-->
+<!--                        <package>com.wpf.DigitalAsset.contracts</package>-->
+<!--                    </output>-->
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

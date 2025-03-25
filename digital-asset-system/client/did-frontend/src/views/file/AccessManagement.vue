@@ -311,7 +311,7 @@
     <!-- 资产认证 -->
     <div v-if="activeTab === 'certify'" class="certify-section">
       <div class="section-header">
-        <h2 class="section-title" data-text="资产认证">资产认证</h2>
+        <h2 class="section-title" data-text="资产认证">请求认证</h2>
       </div>
       <div class="certify-form">
         <div class="form-group">
@@ -326,18 +326,28 @@
         <div class="form-group">
           <label>认证说明:</label>
           <textarea
-            v-model="certifyRequest.comment"
+            v-model="certifyRequest.reason"
             placeholder="输入认证说明"
           />
         </div>
 
-        <div class="approvers-section">
-          <div 
-            v-for="(approver, index) in certifyRequest.approvers"
-            :key="index"
-            class="approver-input"
+        <div class="form-group">
+          <label>认证者选择 (至少选择2位):</label>
+          <el-select
+            v-model="certifyRequest.approvers"
+            multiple
+            filterable
+            placeholder="请选择认证者"
+            :loading="loadingCertifiers"
+            style="width: 100%;"
           >
-          </div>
+            <el-option
+              v-for="certifier in availableCertifiers"
+              :key="certifier.address"
+              :label="`${certifier.name || '未命名认证者'} (${formatAddress(certifier.address)})`"
+              :value="certifier.address"
+            />
+          </el-select>
         </div>
 
         <button
@@ -427,152 +437,38 @@
     </el-dialog>
 
     <!-- 资产详情模态框 -->
-    <el-dialog
-      v-model="detailsDialogVisible"
-      title="资产详情"
-      width="80%"
-      destroy-on-close
+    <asset-detail-dialog
+      v-if="assetDetails"
+      v-model:visible="detailsDialogVisible"
+      :asset-details="assetDetails"
+      :asset-preview-url="assetPreviewUrl"
+      @close="closeAssetDetails"
     >
-      <div class="asset-details-content" v-if="assetDetails">
-        <div class="asset-info">
-          <div class="asset-main">
-            <span class="asset-name">{{ assetDetails.metadata.fileName }}</span>
-            <el-tag size="small" type="info">{{ assetDetails.metadata.category }}</el-tag>
-            <el-tag 
-              size="small" 
-              :type="assetDetails.isCertified ? 'success' : 'warning'"
-              style="margin-left: 10px;"
-            >
-              {{ assetDetails.isCertified ? '已认证' : '未认证' }}
-            </el-tag>
-          </div>
-          <div class="asset-description">{{ assetDetails.metadata.description || '暂无描述' }}</div>
-          
-          <!-- 资产基本信息 -->
-          <el-descriptions :column="3" border>
-            <el-descriptions-item label="资产ID">{{ assetDetails.tokenId }}</el-descriptions-item>
-            <el-descriptions-item label="文件大小">{{ formatFileSize(assetDetails.metadata.fileSize || 0) }}</el-descriptions-item>
-            <el-descriptions-item label="文件类型">{{ assetDetails.metadata.fileType }}</el-descriptions-item>
-            <el-descriptions-item label="IPFS CID">
-              <el-tooltip content="点击复制" placement="top">
-                <span class="cid" @click="copyToClipboard(assetDetails.cid)">
-                  {{ assetDetails.cid }}
-                </span>
-              </el-tooltip>
-            </el-descriptions-item>
-            <el-descriptions-item label="注册时间">{{ formatDate(assetDetails.registrationDate) }}</el-descriptions-item>
-            <el-descriptions-item label="资产版本">{{ assetDetails.version }}</el-descriptions-item>
-          </el-descriptions>
+      <!-- 添加操作按钮插槽 -->
+      <template #footer>
+        <div class="asset-actions">
+          <el-button
+            type="primary"
+            @click="downloadAsset(assetDetails)"
+          >
+            下载文件
+          </el-button>
+          <el-button
+            v-if="!assetDetails.isCertified"
+            type="success"
+            @click="initiateCertificationFromDetails()"
+          >
+            申请认证
+          </el-button>
+          <el-button
+            type="danger"
+            @click="deleteFromDetails()"
+          >
+            删除资产
+          </el-button>
         </div>
-        
-        <div class="preview-section">
-          <!-- 图片预览 -->
-          <div v-if="assetPreviewUrl && assetDetails.metadata.fileType.startsWith('image/')">
-            <iframe  
-              :src="assetPreviewUrl" 
-              @load="handleIframeLoad"
-              @error="handleIframeError"
-              v-if="!iframeLoadFailed"
-              style="width: 100%; height: 500px; border: none; margin-bottom: 1rem;"
-            ></iframe>
-            <!-- 备用图片显示 -->
-            <img 
-              v-if="iframeLoadFailed"
-              :src="assetPreviewUrl"
-              @error="handleImageError"
-              style="max-width: 100%; max-height: 500px; margin: 0 auto; display: block; margin-bottom: 1rem;"
-              alt="资产预览"
-            />
-          </div>
-          
-          <!-- PDF预览 -->
-          <iframe 
-            v-else-if="assetPreviewUrl && assetDetails.metadata.fileType === 'application/pdf'"
-            :src="assetPreviewUrl"
-            @load="handleIframeLoad"
-            @error="handleIframeError"
-            style="width: 100%; height: 500px; border: none; margin-bottom: 1rem;"
-          ></iframe>
-          
-          <!-- 视频预览 -->
-          <video
-            v-else-if="assetPreviewUrl && assetDetails.metadata.fileType.startsWith('video/')"
-            controls
-            :src="assetPreviewUrl"
-            :type="assetDetails.metadata.fileType"
-            crossorigin="anonymous"
-            @error="handleMediaError"
-            style="width: 100%; max-height: 400px; margin-bottom: 1rem;"
-          >
-            您的浏览器不支持视频标签。
-          </video>
-          
-          <!-- 音频预览 -->
-          <audio
-            v-else-if="assetPreviewUrl && assetDetails.metadata.fileType.startsWith('audio/')"
-            controls
-            :src="assetPreviewUrl" 
-            :type="assetDetails.metadata.fileType"
-            crossorigin="anonymous"
-            @error="handleMediaError"
-            style="width: 100%; margin-bottom: 1rem;"
-          >
-            您的浏览器不支持音频标签。
-          </audio>
-          
-          <!-- 加载中状态 -->
-          <div v-else-if="isLoadingPreview" class="loading-preview">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            <span>加载预览中...</span>
-          </div>
-          
-          <!-- 无法预览状态 -->
-          <div v-else class="no-preview">
-            <el-icon><Document /></el-icon>
-            <span>无法预览此类型的文件</span>
-          </div>
-          
-          <!-- 全屏图片预览对话框 -->
-          <el-dialog
-            v-model="fullImageVisible"
-            :title="assetDetails?.metadata?.fileName || '图片预览'"
-            width="90%"
-            top="5vh"
-            destroy-on-close
-            append-to-body
-            :close-on-click-modal="true"
-            :show-close="true"
-          >
-            <div class="full-image-container">
-              <img :src="assetPreviewUrl" alt="全屏预览" class="full-image" />
-            </div>
-          </el-dialog>
-
-          <!-- 操作按钮 -->
-          <div class="asset-actions">
-            <el-button
-              type="primary"
-              @click="downloadAsset(assetDetails)"
-            >
-              下载文件
-            </el-button>
-            <el-button
-              v-if="!assetDetails.isCertified"
-              type="success"
-              @click="initiateCertificationFromDetails()"
-            >
-              申请认证
-            </el-button>
-            <el-button
-              type="danger"
-              @click="deleteFromDetails()"
-            >
-              删除资产
-            </el-button>
-          </div>
-        </div>
-      </div>
-    </el-dialog>
+      </template>
+    </asset-detail-dialog>
   </div>
 </template>
 
@@ -582,7 +478,7 @@ import { ElMessage, ElDialog } from 'element-plus'
 import { getDigitalAssetService } from '@/utils/web3/DigitalAssetService'
 import type { CertificationRequest } from '@/utils/web3/DigitalAssetService'
 import { ethers } from 'ethers'
-import { RBACService } from '@/utils/web3/RBACService'
+import { RBACService, getRBACService } from '@/utils/web3/RBACService'
 import { RBAC__factory } from '@/contracts/types'
 import { CONTRACT_ADDRESSES } from '@/config/contracts'
 import { create } from 'ipfs-http-client'
@@ -592,6 +488,8 @@ import FileUpload from '@/components/upload/FileUpload.vue'
 import { Document, Loading, PictureFilled } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { useUserStore } from '@/stores/user'
+// 在<script setup>部分中导入组件
+import AssetDetailDialog from '@/components/AssetDetailDialog.vue';
 
 const userStore = useUserStore()
 const ipfs = create({
@@ -602,16 +500,16 @@ const ipfs = create({
 const tabs = [
   { id: 'assets', label: '资产列表' },
   { id: 'register', label: '资产登记' },
-  { id: 'certify', label: '资产认证' }
+  { id: 'certify', label: '请求认证' }
 ]
 const activeTab = ref('assets')
 
 // 资产认证相关状态
 const certifyRequest = ref<CertificationRequest>({
   tokenId: 0,
-  comment: '',
-  approvers: ['']
-})
+  reason: '',
+  approvers: []
+});
 const isCertifying = ref(false)
 
 // 错误处理
@@ -621,51 +519,137 @@ const errorMessage = ref('')
 const isCertifyFormValid = computed(() => {
   return (
     certifyRequest.value.tokenId > 0 &&
-    certifyRequest.value.comment.trim() !== ''
-  )
-})
+    certifyRequest.value.reason.trim() !== '' &&
+    certifyRequest.value.approvers.length >= 2
+  );
+});
 
-// // 资产认证处理
-// const addApprover = () => {
-//   certifyRequest.value.approvers.push('')
-// }
+// 认证者列表和加载状态
+const availableCertifiers = ref<{address: string; name?: string}[]>([]);
+const loadingCertifiers = ref(false);
 
-// const removeApprover = (index: number) => {
-//   certifyRequest.value.approvers.splice(index, 1)
-// }
-
-const handleCertification = async () => {
+// 获取可用认证者列表
+const fetchAvailableCertifiers = async () => {
+  loadingCertifiers.value = true;
   try {
-    isCertifying.value = true
-    errorMessage.value = ''
+    // 优先从后端API获取认证者列表
+    try {
+      const token = userStore.profile?.token || '';
+      const response = await axios.get('/api/certification/certifiers', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log("认证者列表：" + (response.data.data ? response.data.data.length : 0));
+      if (response.data.success) {
+        availableCertifiers.value = response.data.data;
+        loadingCertifiers.value = false;
+        return; // 成功从后端获取，直接返回
+      }
+    } catch (apiError) {
+      console.warn('从后端获取认证者失败，尝试从区块链获取:', apiError);
+    }
 
-    const response = await axios.post('/api/certification/request', {
-      tokenId: Number(certifyRequest.value.tokenId),
-      comment: certifyRequest.value.comment,
-      approvers: certifyRequest.value.approvers,
-      requesterAddress: userStore.profile?.walletAddress
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${userStore.profile?.token}`
+    // 如果后端API不可用，从区块链获取
+    const rbacService = await getRBACService();
+    const memberCount = await rbacService.getRoleMemberCount('CERTIFIER_ROLE');
+    
+    const certifiers = [];
+    for (let i = 0; i < Number(memberCount); i++) {
+      const certifierAddress = await rbacService.getRoleMember('CERTIFIER_ROLE', i);
+      // 排除当前用户
+      if (certifierAddress !== userStore.profile?.walletAddress) {
+        certifiers.push({
+          address: certifierAddress,
+          name: `认证者 ${i+1}`
+        });
       }
     }
-  )
-
-    if(response.data.success) {
-      ElMessage.success('资产认证申请提交成功')
-    } else {
-      ElMessage.error(response.data.message || '资产认证申请失败')
-    }
-
-    // 重置表单
-    certifyRequest.value = { tokenId: 0, comment: '', approvers: [''] }
+    
+    availableCertifiers.value = certifiers;
   } catch (error) {
-    handleServiceError(error)
+    console.error('获取认证者列表失败:', error);
+    ElMessage.error('获取认证者列表失败');
+    availableCertifiers.value = [];
   } finally {
-    isCertifying.value = false
+    loadingCertifiers.value = false;
   }
-}
+};
+
+// 格式化钱包地址显示
+const formatAddress = (address: string) => {
+  if (!address) return '';
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+};
+
+// 在组件加载时获取认证者列表
+onMounted(() => {
+  if (activeTab.value === 'certify') {
+    fetchAvailableCertifiers();
+  }
+});
+
+// 当标签页切换到认证时获取认证者列表
+watch(activeTab, (newTab) => {
+  if (newTab === 'certify') {
+    fetchAvailableCertifiers();
+  }
+});
+
+// 处理认证请求提交
+const handleCertification = async () => {
+  if (!isCertifyFormValid.value) {
+    ElMessage.warning('请完成所有必填项并选择至少两位认证者');
+    return;
+  }
+  
+  isCertifying.value = true;
+  try {
+    // 获取基本请求信息
+    const baseRequest = {
+      tokenId: Number(certifyRequest.value.tokenId),
+      reason: certifyRequest.value.reason,
+      requester: userStore.profile?.walletAddress,
+      requestDate: new Date().toISOString(),
+    };
+    
+    console.log("请求者地址：" + userStore.profile?.walletAddress);
+    
+    // 为每个approver创建单独的请求
+    const token = userStore.profile?.token || '';
+    const requests = certifyRequest.value.approvers.map(approver => ({
+      ...baseRequest,
+      certifierAddress: approver // 每个请求只包含一个认证者
+    }));
+    
+    // 并行发送所有请求
+    const responses = await Promise.all(
+      requests.map(request => 
+        axios.post('/api/certification/request', request, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      )
+    );
+    
+    // 检查所有请求是否成功
+    const allSuccess = responses.every(response => response.data.success);
+    
+    if (allSuccess) {
+      ElMessage.success('所有认证请求已提交');
+      // 重置表单
+      certifyRequest.value = {
+        tokenId: 0,
+        reason: '',
+        approvers: []
+      };
+    } else {
+      throw new Error('部分请求提交失败');
+    }
+  } catch (error: any) {
+    console.error('提交认证请求失败:', error);
+    ElMessage.error('提交认证请求失败: ' + (error.message || '未知错误'));
+  } finally {
+    isCertifying.value = false;
+  }
+};
 
 // 统一错误处理
 const handleServiceError = (error: any) => {
@@ -719,6 +703,9 @@ const hasRegistrarRole = ref(false);
 onMounted(async () => {
   await fetchUserAssets()
   await checkRole()
+  if (activeTab.value === 'certify') {
+    fetchAvailableCertifiers();
+  }
 })
 
 const fetchUserAssets = async (page = 1, forceRefresh = false) => {
@@ -1475,6 +1462,14 @@ const handleIframeError = (event: Event) => {
 const handleImageError = (event: Event) => {
   console.error('图片直接加载失败:', assetPreviewUrl.value);
   ElMessage.error('图片加载失败，可能的原因：网络连接问题或文件损坏');
+};
+
+// 关闭资产详情对话框
+const closeAssetDetails = () => {
+  detailsDialogVisible.value = false;
+  assetPreviewUrl.value = '';
+  isLoadingPreview.value = true;
+  iframeLoadFailed.value = false;
 };
 </script>
 
@@ -2663,5 +2658,32 @@ tr:hover .el-button--danger {
   max-width: 100%;
   max-height: 80vh;
   object-fit: contain;
+}
+
+.certifier-option {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  width: 100%;
+}
+
+.certifier-name {
+  font-size: 14px;
+  color: #ffffff;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.certifier-address {
+  font-size: 12px;
+  color: #bbbec4;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+.certifier-org {
+  font-size: 12px;
+  color: #67c23a;
+  margin-top: 2px;
 }
 </style>
