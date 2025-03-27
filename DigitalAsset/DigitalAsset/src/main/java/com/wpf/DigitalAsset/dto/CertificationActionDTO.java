@@ -11,5 +11,4 @@ public class CertificationActionDTO {
     private String certifierAddress; // 认证者的钱包地址
     private String comments;        // 认证评论或拒绝理由
     private String certificateCid;  // 证书的IPFS CID (如有)
-    private Integer validityPeriod; // 有效期(天)，null表示永久
 } 

@@ -3,6 +3,7 @@ package com.wpf.DigitalAsset.service;
 import com.wpf.DigitalAsset.dao.*;
 import com.wpf.DigitalAsset.dto.CertificationActionDTO;
 import com.wpf.DigitalAsset.dto.CertificationRequestDTO;
+import com.wpf.DigitalAsset.dto.CertificationStatusDTO;
 import com.wpf.DigitalAsset.dto.CertifierDTO;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -104,7 +105,6 @@ public class CertificationServiceImpl implements CertificationService {
 
         // 创建认证记录
         CertificationRecord record = new CertificationRecord(request);
-        record.setValidityPeriod(actionDTO.getValidityPeriod());
 
         return recordRepository.save(record);
     }
@@ -185,6 +185,25 @@ public class CertificationServiceImpl implements CertificationService {
     @Override
     public void saveCertificationRequest(Long requestId, Object certifier, String signature) {
 
+    }
+
+    @Override
+    public List<CertificationStatusDTO> getCertificationStatus(Long tokenId) {
+        List<AssetCertificationRequest> requests = requestRepository.findByTokenId(tokenId);
+        List<CertificationStatusDTO> certificationStatusDTOList = new ArrayList<>();
+        for(AssetCertificationRequest request:requests){
+            CertificationStatusDTO certificationStatusDTO = new CertificationStatusDTO();
+            certificationStatusDTO.setCertifierAddress(request.getCertifierAddress());
+            Optional<User> user = userRepository.findByWeb3Address(request.getCertifierAddress());
+            Optional<Admin> admin = adminRepository.findByWalletAddress(request.getCertifierAddress());
+            if(user.isPresent()){
+                certificationStatusDTO.setCertifierName(user.get().getUsername());
+            }
+            else admin.ifPresent(value -> certificationStatusDTO.setCertifierName(value.getAdminName()));
+            certificationStatusDTO.setStatus(request.getStatus());
+            certificationStatusDTOList.add(certificationStatusDTO);
+        }
+        return certificationStatusDTOList;
     }
 
 

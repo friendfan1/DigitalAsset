@@ -2,10 +2,7 @@ package com.wpf.DigitalAsset.controller;
 
 import com.wpf.DigitalAsset.dao.AssetCertificationRequest;
 import com.wpf.DigitalAsset.dao.CertificationRecord;
-import com.wpf.DigitalAsset.dto.ApiResponse;
-import com.wpf.DigitalAsset.dto.CertificationActionDTO;
-import com.wpf.DigitalAsset.dto.CertificationRequestDTO;
-import com.wpf.DigitalAsset.dto.CertifierDTO;
+import com.wpf.DigitalAsset.dto.*;
 import com.wpf.DigitalAsset.service.CertificationService;
 import jakarta.persistence.EntityNotFoundException;
 
@@ -15,7 +12,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.logging.Logger;
 
@@ -186,20 +185,10 @@ public class CertificationController {
      * 获取资产认证状态 - 公开接口，无需认证
      */
     @GetMapping("/status/{tokenId}")
-    public ResponseEntity<ApiResponse<Object>> getCertificationStatus(@PathVariable Long tokenId) {
+    public ResponseEntity<ApiResponse<List<CertificationStatusDTO>>> getCertificationStatus(@PathVariable Long tokenId) {
         try {
-            boolean isCertified = certificationService.isAssetCertified(tokenId);
-            Optional<CertificationRecord> recordOpt = certificationService.getAssetCertification(tokenId);
-            
-            ApiResponse<Object> response = new ApiResponse<>(true, "获取认证状态成功", null);
-            if (isCertified && recordOpt.isPresent()) {
-                response.setData(recordOpt.get());
-            } else {
-                // 返回简单的认证状态
-                response.setData(new CertificationStatus(isCertified));
-            }
-            
-            return ResponseEntity.ok(response);
+            List<CertificationStatusDTO> certificationStatusDTOs = certificationService.getCertificationStatus(tokenId);
+            return ResponseEntity.ok(new ApiResponse<>(true, "获取认证状态成功", certificationStatusDTOs));
         } catch (Exception e) {
             logger.severe("获取资产认证状态失败: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

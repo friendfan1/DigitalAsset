@@ -106,7 +106,7 @@
     <el-dialog
       v-model="certificationDialogVisible"
       title="资产认证"
-      width="500px"
+      width="600px"
       destroy-on-close
     >
       <template v-if="selectedAssetForCert">
@@ -115,6 +115,35 @@
           <p><strong>资产ID：</strong> {{ selectedAssetForCert.tokenId }}</p>
           <p><strong>文件名：</strong> {{ selectedAssetForCert.metadata.fileName }}</p>
           <p><strong>文件类型：</strong> {{ selectedAssetForCert.metadata.fileType }}</p>
+        </div>
+
+        <!-- 添加认证状态展示 -->
+        <div class="certification-status">
+          <h3>认证状态</h3>
+          <div v-loading="isLoadingStatus" class="status-list">
+            <template v-if="certificationStatus.length > 0">
+              <div v-for="status in certificationStatus" :key="status.certifierAddress" class="status-item">
+                <div class="certifier-info">
+                  <span class="certifier-name">{{ status.certifierName || formatAddress(status.certifierAddress) }}</span>
+                  <span class="certifier-address">{{ formatAddress(status.certifierAddress) }}</span>
+                </div>
+                <div class="status-badge" :class="status.status">
+                  {{ status.status === 'PENDING' ? '待认证' : 
+                     status.status === 'APPROVED' ? '已通过' : 
+                     status.status === 'REJECTED' ? '已拒绝' : '已完成' }}
+                </div>
+                <div v-if="status.timestamp" class="status-time">
+                  {{ formatDate(new Date(status.timestamp)) }}
+                </div>
+                <div v-if="status.reason" class="status-reason">
+                  {{ status.reason }}
+                </div>
+              </div>
+            </template>
+            <div v-else class="no-status">
+              暂无认证记录
+            </div>
+          </div>
         </div>
         
         <el-form :model="certificationForm" label-width="100px" class="cert-form">
@@ -125,23 +154,20 @@
               :rows="4"
               placeholder="请输入认证评论，说明认证原因和内容真实性的确认..."
             ></el-input>
-          </el-form-item>
-          
-          <el-form-item label="其他认证人">
-            <el-select 
-              v-model="certificationForm.additionalCertifiers"
-              multiple
-              clearable
-              placeholder="选择至少一名额外认证人（多重签名要求）"
-            >
-              <el-option
-                v-for="certifier in availableCertifiers"
-                :key="certifier.walletAddress"
-                :label="certifier.username || formatAddress(certifier.walletAddress)"
-                :value="certifier.walletAddress"
-              ></el-option>
-            </el-select>
-            <div class="form-hint">注意：区块链认证需要至少两名认证人的签名</div>
+            <!-- 添加常用评论快速选择 -->
+            <div class="quick-comments">
+              <span class="quick-comments-label">常用评论：</span>
+              <el-button 
+                type="success" 
+                size="small" 
+                @click="certificationForm.comment = '经过审核，我认为该资产内容真实有效，符合认证标准，同意认证。'"
+              >同意认证</el-button>
+              <el-button 
+                type="danger" 
+                size="small" 
+                @click="certificationForm.comment = '经审核发现该资产内容存在问题，不符合认证标准，拒绝认证。'"
+              >拒绝认证</el-button>
+            </div>
           </el-form-item>
         </el-form>
       </template>
@@ -191,24 +217,21 @@
               :rows="4"
               placeholder="请输入批量认证评论..."
             ></el-input>
+            <div class="quick-comments">
+              <span class="quick-comments-label">常用评论：</span>
+              <el-button 
+                type="success" 
+                size="small" 
+                @click="batchCertificationForm.comment = '批量审核通过，这些资产内容真实有效，符合认证标准，同意认证。'"
+              >批量同意</el-button>
+              <el-button 
+                type="danger" 
+                size="small" 
+                @click="batchCertificationForm.comment = '经审核发现这些资产内容存在问题，不符合认证标准，拒绝认证。'"
+              >拒绝认证</el-button>
+            </div>
           </el-form-item>
           
-          <el-form-item label="其他认证人">
-            <el-select 
-              v-model="batchCertificationForm.additionalCertifiers"
-              multiple
-              clearable
-              placeholder="选择至少一名额外认证人（多重签名要求）"
-            >
-              <el-option
-                v-for="certifier in availableCertifiers"
-                :key="certifier.walletAddress"
-                :label="certifier.username || formatAddress(certifier.walletAddress)"
-                :value="certifier.walletAddress"
-              ></el-option>
-            </el-select>
-            <div class="form-hint">注意：区块链认证需要至少两名认证人的签名</div>
-          </el-form-item>
         </el-form>
       </div>
       <template #footer>
@@ -238,6 +261,7 @@ import { RBACService, getRBACService } from '@/utils/web3/RBACService';
 import { hasBlockchainRole } from '@/utils/permission';
 import { BrowserProvider } from 'ethers';
 import AssetDetailDialog from '@/components/AssetDetailDialog.vue';
+import axios from 'axios';
 
 // 用户信息
 const userStore = useUserStore();
@@ -312,8 +336,7 @@ const fullImageVisible = ref(false);
 const certificationDialogVisible = ref(false);
 const isCertifying = ref(false);
 const certificationForm = ref({
-  comment: '',
-  additionalCertifiers: []
+  comment: ''
 });
 
 // 批量认证状态
@@ -323,6 +346,42 @@ const batchCertificationForm = ref({
   comment: '',
   additionalCertifiers: []
 });
+
+
+interface CertificationStatus {
+  certifierAddress: string;
+  certifierName?: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  timestamp?: string;
+  reason?: string;
+}
+
+const certificationStatus = ref<CertificationStatus[]>([]);
+const isLoadingStatus = ref(false);
+
+// 获取认证状态
+const fetchCertificationStatus = async (tokenId: number) => {
+  if (!tokenId) return;
+  
+  isLoadingStatus.value = true;
+  try {
+    const token = userStore.profile?.token || '';
+    const response = await axios.get(`/api/certification/status/${tokenId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      certificationStatus.value = response.data.data;
+    } else {
+      throw new Error(response.data.message || '获取认证状态失败');
+    }
+  } catch (error: any) {
+    console.error('获取认证状态失败:', error);
+    ElMessage.error('获取认证状态失败: ' + (error.message || '未知错误'));
+  } finally {
+    isLoadingStatus.value = false;
+  }
+};
 
 // 计算属性
 const filteredAssets = computed(() => {
@@ -358,8 +417,7 @@ const hasUncertifiedAssets = computed(() => {
 });
 
 const isCertificationFormValid = computed(() => {
-  return certificationForm.value.comment.trim() !== '' && 
-         certificationForm.value.additionalCertifiers.length > 0;
+  return certificationForm.value.comment.trim() !== '';
 });
 
 const isBatchCertificationFormValid = computed(() => {
@@ -578,10 +636,11 @@ const generatePreviewUrl = async (asset: Asset) => {
 const showCertificationDialog = (asset: Asset) => {
   selectedAssetForCert.value = asset;
   certificationForm.value = {
-    comment: '',
-    additionalCertifiers: []
+    comment: ''
   };
   certificationDialogVisible.value = true;
+  // 获取认证状态
+  fetchCertificationStatus(Number(asset.tokenId));
 };
 
 const showBatchCertificationDialog = () => {
@@ -599,7 +658,7 @@ const showBatchCertificationDialog = () => {
 
 const certifyAsset = async () => {
   if (!isCertificationFormValid.value) {
-    ElMessage.warning('请填写认证评论并选择至少一名额外认证人');
+    ElMessage.warning('请填写认证评论');
     return;
   }
   
@@ -610,7 +669,7 @@ const certifyAsset = async () => {
     const request: CertificationRequest = {
       tokenId: Number(selectedAssetForCert.value!.tokenId),
       reason: certificationForm.value.comment,
-      approvers: certificationForm.value.additionalCertifiers
+      approvers: [userWalletAddress.value] // 当前认证人
     };
     
     await digitalAssetService.certifyAsset(request);
@@ -618,7 +677,9 @@ const certifyAsset = async () => {
     ElMessage.success('资产认证成功');
     certificationDialogVisible.value = false;
     
+    // 刷新资产列表和认证状态
     await fetchAssets();
+    await fetchCertificationStatus(Number(selectedAssetForCert.value!.tokenId));
     
   } catch (error: any) {
     console.error('资产认证失败:', error);
@@ -908,5 +969,106 @@ const closeAssetDetails = () => {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+}
+
+.certification-status {
+  margin: 20px 0;
+  padding: 15px;
+  background: #f5f7fa;
+  border-radius: 8px;
+}
+
+.certification-status h3 {
+  color: #0a192f;
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 10px;
+  background: #ffffff;
+  border-radius: 6px;
+  border: 1px solid #e4e7ed;
+}
+
+.certifier-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.certifier-name {
+  color: #0a192f;
+  font-weight: 500;
+}
+
+.certifier-address {
+  color: #8892b0;
+  font-size: 12px;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.pending {
+  background: rgba(230, 162, 60, 0.1);
+  color: #e6a23c;
+  border: 1px solid rgba(230, 162, 60, 0.2);
+}
+
+.status-badge.approved {
+  background: rgba(103, 194, 58, 0.1);
+  color: #67c23a;
+  border: 1px solid rgba(103, 194, 58, 0.2);
+}
+
+.status-badge.rejected {
+  background: rgba(245, 108, 108, 0.1);
+  color: #f56c6c;
+  border: 1px solid rgba(245, 108, 108, 0.2);
+}
+
+.status-time {
+  color: #8892b0;
+  font-size: 12px;
+}
+
+.status-reason {
+  color: #8892b0;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.no-status {
+  text-align: center;
+  color: #8892b0;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 6px;
+  border: 1px dashed #e4e7ed;
+}
+
+.quick-comments {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.quick-comments-label {
+  font-weight: 500;
 }
 </style> 

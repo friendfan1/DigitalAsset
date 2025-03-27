@@ -736,13 +736,18 @@ const changePage = async (page: number) => {
 }
 
 const formatDate = (date: Date) => {
-  return date.toLocaleString('zh-CN', {
+  if (!date) return '未知';
+  // 如果传入的是字符串，先转换为Date对象
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  return dateObj.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit'
-  })
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
 }
 
 // 添加资产详情模态框状态

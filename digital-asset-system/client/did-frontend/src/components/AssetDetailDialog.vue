@@ -134,6 +134,7 @@
 import { ref, watch, defineProps, defineEmits } from 'vue';
 import { Loading, Document } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { formatDate } from '@/utils/dateFormat';
 
 const props = defineProps({
   visible: {
@@ -216,12 +217,12 @@ const copyToClipboard = (text: string) => {
     });
 };
 
-// 格式化日期
-const formatDate = (timestamp: number) => {
-  if (!timestamp) return '未知';
-  const date = new Date(timestamp * 1000);
-  return date.toLocaleString('zh-CN');
-};
+// // 格式化日期
+// const formatDate = (timestamp: number) => {
+//   if (!timestamp) return '未知';
+//   const date = new Date(timestamp * 1000);
+//   return date.toLocaleString('zh-CN');
+// };
 
 // 格式化文件大小
 const formatFileSize = (size: number) => {
