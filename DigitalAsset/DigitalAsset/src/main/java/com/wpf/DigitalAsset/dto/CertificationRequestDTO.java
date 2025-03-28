@@ -2,6 +2,7 @@ package com.wpf.DigitalAsset.dto;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -13,9 +14,7 @@ public class CertificationRequestDTO {
     private Long tokenId;
     private String reason;
     private String requester;
-    private String requestTime;
+    private LocalDateTime requestTime;
     private String status;
     private String certifierAddress;
-    private String signature;
-
-} 
+}

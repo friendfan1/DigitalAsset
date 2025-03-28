@@ -259,7 +259,7 @@ import { formatDate } from '@/utils/dateFormat';
 import { DigitalAssetService, type CertificationRequest, getDigitalAssetService } from '@/utils/web3/DigitalAssetService';
 import { RBACService, getRBACService } from '@/utils/web3/RBACService';
 import { hasBlockchainRole } from '@/utils/permission';
-import { BrowserProvider } from 'ethers';
+import { BrowserProvider, Signature } from 'ethers';
 import AssetDetailDialog from '@/components/AssetDetailDialog.vue';
 import axios from 'axios';
 
@@ -421,8 +421,7 @@ const isCertificationFormValid = computed(() => {
 });
 
 const isBatchCertificationFormValid = computed(() => {
-  return batchCertificationForm.value.comment.trim() !== '' && 
-         batchCertificationForm.value.additionalCertifiers.length > 0;
+  return batchCertificationForm.value.comment.trim() !== ''
 });
 
 // 生命周期钩子
@@ -664,22 +663,50 @@ const certifyAsset = async () => {
   
   isCertifying.value = true;
   try {
-    const digitalAssetService = await getDigitalAssetService();
+    if (!walletStore.isConnected) {
+      await walletStore.connectMetaMask();
+    }
     
-    const request: CertificationRequest = {
-      tokenId: Number(selectedAssetForCert.value!.tokenId),
-      reason: certificationForm.value.comment,
-      approvers: [userWalletAddress.value] // 当前认证人
-    };
+    const tokenId = Number(selectedAssetForCert.value!.tokenId);
+    const reason = certificationForm.value.comment;
     
-    await digitalAssetService.certifyAsset(request);
+    // 准备要签名的消息
+    const messageToSign = `我同意认证资产 ID: ${tokenId}\n原因: ${reason}\n时间戳: ${Date.now()}`;
     
-    ElMessage.success('资产认证成功');
+    // 获取钱包提供商
+    const provider = new BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    
+    // 使用钱包签名
+    const signature = await signer.signMessage(messageToSign);
+    console.log("signature", signature)
+    console.log("messageToSign", messageToSign)
+    console.log("userWalletAddress", userWalletAddress.value)
+    // 提交到后端
+    const response = await axios.post('/api/certification/sign', {
+      tokenId: tokenId,
+      reason: reason,
+      certifierAddress: userWalletAddress.value,
+      signature: signature,
+      messageToSign: messageToSign,
+      timestamp: Date.now()
+    }, {
+      headers: {
+        'Authorization': `Bearer ${userStore.profile?.token || ''}`
+      }
+    });
+    
+    if (response.data.success) {
+      ElMessage.success('认证签名提交成功，等待其他认证者完成认证');
+    } else {
+      throw new Error(response.data.message || '认证失败');
+    }
+    
     certificationDialogVisible.value = false;
     
     // 刷新资产列表和认证状态
     await fetchAssets();
-    await fetchCertificationStatus(Number(selectedAssetForCert.value!.tokenId));
+    await fetchCertificationStatus(tokenId);
     
   } catch (error: any) {
     console.error('资产认证失败:', error);
@@ -691,7 +718,7 @@ const certifyAsset = async () => {
 
 const certifyBatchAssets = async () => {
   if (!isBatchCertificationFormValid.value) {
-    ElMessage.warning('请填写认证评论并选择至少一名额外认证人');
+    ElMessage.warning('请填写认证评论');
     return;
   }
   

@@ -2487,6 +2487,170 @@ export class DigitalAssetService extends BaseWeb3Service {
       throw error;
     }
   }
+
+  /**
+   * 验证用户是否拥有资产的所有权
+   * @param tokenId 资产ID
+   * @returns 包含验证结果和资产信息的对象
+   */
+  async verifyAssetOwnership(tokenId: number): Promise<{
+    isOwner: boolean;
+    hasPendingCertification: boolean;
+    asset: any;
+  }> {
+    try {
+      // 1. 检查资产是否存在
+      // 使用 ownerOf() 方法来间接检查是否存在（如果不存在会抛出错误）
+      let owner;
+      try {
+        owner = await this.contract.ownerOf(tokenId);
+      } catch (error) {
+        throw new Error(`资产 ID ${tokenId} 不存在`);
+      }
+      
+      // 3. 获取当前连接的钱包地址
+      const currentAddress = await this.getCurrentAddress();
+      
+      // 4. 确定用户是否是所有者
+      const isOwner = owner.toLowerCase() === currentAddress.toLowerCase();
+      
+      // 5. 获取资产元数据
+      const metadata = await this.getAssetMetadata(tokenId);
+      
+      // 6. 检查是否已有待认证请求
+      // 获取认证申请状态
+      let hasPendingCertification = false;
+      try {
+        // 假设合约有一个方法获取认证申请的状态
+        const pendingCertifications = await this.getPendingCertifications(tokenId);
+        hasPendingCertification = pendingCertifications.length > 0;
+      } catch (error) {
+        console.warn(`获取资产 ${tokenId} 的认证申请状态失败:`, error);
+      }
+      
+      // 7. 检查是否已认证
+      // 假设合约方法或者我们已经有一个现有的方法检查认证状态
+      const isCertified = await this.isAssetCertified(tokenId);
+      
+      // 8. 构建并返回结果对象
+      const asset = {
+        tokenId,
+        owner,
+        metadata,
+        isCertified,
+        // 如果已认证，获取认证相关信息
+        ...(isCertified ? await this.getCertificationDetails(tokenId) : {})
+      };
+      
+      return {
+        isOwner,
+        hasPendingCertification,
+        asset
+      };
+    } catch (error) {
+      console.error("验证资产所有权失败:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取待认证的申请
+   * @param tokenId 资产ID
+   * @returns 待认证申请列表
+   */
+  private async getPendingCertifications(tokenId: number): Promise<any[]> {
+    try {
+      // 这里实现从API或区块链获取待认证申请
+      // 例如从后端API获取
+      const response = await axios.get(`/api/certification/pending/${tokenId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+        }
+      });
+      
+      if (response.data.success) {
+        return response.data.data || [];
+      }
+      
+      return [];
+    } catch (error) {
+      console.error(`获取资产 ${tokenId} 的待认证申请失败:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * 检查资产是否已认证
+   * @param tokenId 资产ID
+   * @returns 是否已认证
+   */
+  private async isAssetCertified(tokenId: number): Promise<boolean> {
+    try {
+      // 检查是否有认证记录
+      const metadata = await this.getAssetMetadata(tokenId);
+      // 假设元数据中有认证状态信息
+      return Boolean(metadata && metadata[5]); // 确保返回布尔值
+    } catch (error) {
+      console.error(`检查资产 ${tokenId} 认证状态失败:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取资产认证详情
+   * @param tokenId 资产ID
+   * @returns 认证详情
+   */
+  private async getCertificationDetails(tokenId: number): Promise<{
+    certificationDate: Date;
+    certificationTxHash: string;
+    certifiers: { address: string; name?: string }[];
+  }> {
+    try {
+      // 1. 获取认证事件
+      const filter = this.contract.filters.AssetCertified(tokenId);
+      const events = await this.contract.queryFilter(filter);
+      
+      if (events.length === 0) {
+        throw new Error(`未找到资产 ${tokenId} 的认证事件`);
+      }
+      
+      // 2. 获取最新的认证事件
+      const latestEvent = events[events.length - 1];
+      
+      // 3. 从事件中提取相关信息
+      const certificationTxHash = latestEvent.transactionHash;
+      const block = await latestEvent.getBlock();
+      const certificationDate = new Date(block.timestamp * 1000); // 转换为毫秒
+      
+      // 4. 获取认证者列表
+      // 从API获取认证者信息
+      const certifiersResponse = await axios.get(`/api/certification/certifiers/${tokenId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+        }
+      });
+      
+      let certifiers: { address: string; name?: string }[] = [];
+      
+      if (certifiersResponse.data.success) {
+        certifiers = certifiersResponse.data.data || [];
+      }
+      
+      return {
+        certificationDate,
+        certificationTxHash,
+        certifiers
+      };
+    } catch (error) {
+      console.error("获取认证详情失败:", error);
+      return {
+        certificationDate: new Date(),
+        certificationTxHash: "",
+        certifiers: []
+      };
+    }
+  }
 }
 
 // 辅助函数用于合并Uint8Array数组

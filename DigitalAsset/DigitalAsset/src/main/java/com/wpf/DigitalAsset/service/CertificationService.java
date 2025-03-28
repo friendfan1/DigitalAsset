@@ -37,14 +37,6 @@ public interface CertificationService {
     List<AssetCertificationRequest> getPendingRequests();
 
     /**
-     * 批准认证请求
-     * @param requestId 请求ID
-     * @param actionDTO 认证决定数据
-     * @return 认证记录
-     */
-    CertificationRecord approveRequest(Long requestId, CertificationActionDTO actionDTO);
-
-    /**
      * 拒绝认证请求
      * @param requestId 请求ID
      * @param actionDTO 拒绝决定数据
@@ -74,11 +66,11 @@ public interface CertificationService {
 
     List<CertifierDTO> getAllCertifiers();
 
-    void saveCertificationRequest(CertificationRequestDTO requestDTO);
+    void saveCertificationRequest(CertificationActionDTO requestDTO);
 
     List<CertificationRequestDTO> getPendingCertificationRequests(String certifierAddress);
 
-    void saveCertificationRequest(Long requestId, Object certifier, String signature);
+//    void saveCertificationRequest(Long requestId, Object certifier, String signature);
 
     List<CertificationStatusDTO> getCertificationStatus(Long tokenId);
 }

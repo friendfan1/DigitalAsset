@@ -34,6 +34,8 @@ public class CertificationServiceImpl implements CertificationService {
     private UserRepository userRepository;
     @Autowired
     private AdminRepository adminRepository;
+    @Autowired
+    private CertificationSignatureRepository certificationSignatureRepository;
 
     @Override
     @Transactional
@@ -56,9 +58,6 @@ public class CertificationServiceImpl implements CertificationService {
         request.setUpdatedAt(LocalDateTime.now());
         request.setStatus(AssetCertificationRequest.RequestStatus.PENDING);
         request.setCertifierAddress(requestDTO.getCertifierAddress());
-        logger.info("Certifier:"+request.getCertifierAddress());
-
-        logger.info("把东西存进去");
         requestRepository.save(request);
 
         return request;
@@ -81,33 +80,6 @@ public class CertificationServiceImpl implements CertificationService {
         return requestRepository.findByStatus(AssetCertificationRequest.RequestStatus.PENDING);
     }
 
-    @Override
-    @Transactional
-    public CertificationRecord approveRequest(Long requestId, CertificationActionDTO actionDTO) {
-        logger.info("批准认证请求: " + requestId);
-
-        // 获取请求
-        AssetCertificationRequest request = requestRepository.findById(requestId)
-                .orElseThrow(() -> new EntityNotFoundException("找不到ID为 " + requestId + " 的认证请求"));
-
-        // 检查请求状态
-        if (!AssetCertificationRequest.RequestStatus.PENDING.equals(request.getStatus())) {
-            throw new IllegalStateException("只能批准待处理的请求");
-        }
-
-        // 更新请求状态
-        request.setStatus(AssetCertificationRequest.RequestStatus.APPROVED);
-        request.setCertifierAddress(actionDTO.getCertifierAddress());
-        request.setCertificationTime(LocalDateTime.now());
-        request.setCertificateCid(actionDTO.getCertificateCid());
-
-        requestRepository.save(request);
-
-        // 创建认证记录
-        CertificationRecord record = new CertificationRecord(request);
-
-        return recordRepository.save(record);
-    }
 
     @Override
     @Transactional
@@ -170,8 +142,20 @@ public class CertificationServiceImpl implements CertificationService {
     }
 
     @Override
-    public void saveCertificationRequest(CertificationRequestDTO requestDTO) {
-
+    public void saveCertificationRequest(CertificationActionDTO requestDTO) {
+        AssetCertificationRequest assetCertificationRequest = requestRepository
+                .findByTokenIdAndCertifierAddress(requestDTO.getTokenId(), requestDTO.getCertifierAddress());
+        assetCertificationRequest.setReason(requestDTO.getReason());
+        assetCertificationRequest.setCertificationTime(requestDTO.getTimestamp().toLocalDateTime());
+        assetCertificationRequest.setStatus(AssetCertificationRequest.RequestStatus.APPROVED);
+        requestRepository.save(assetCertificationRequest);
+        CertificationSignature certificationSignature = new CertificationSignature();
+        certificationSignature.setRequestId(assetCertificationRequest.getId());
+        certificationSignature.setCertifierAddress(requestDTO.getCertifierAddress());
+        certificationSignature.setMessageToSign(requestDTO.getMessageToSign());
+        certificationSignature.setSignature(requestDTO.getSignature());
+        certificationSignature.setTimeStamp(requestDTO.getTimestamp());
+        certificationSignatureRepository.save(certificationSignature);
     }
 
     @Override
@@ -182,10 +166,6 @@ public class CertificationServiceImpl implements CertificationService {
                 .toList();
     }
 
-    @Override
-    public void saveCertificationRequest(Long requestId, Object certifier, String signature) {
-
-    }
 
     @Override
     public List<CertificationStatusDTO> getCertificationStatus(Long tokenId) {
@@ -213,7 +193,7 @@ public class CertificationServiceImpl implements CertificationService {
         dto.setTokenId(request.getTokenId());
         dto.setReason(request.getReason());
         dto.setRequester(request.getRequester());
-        dto.setRequestTime(request.getCreatedAt().toString());
+        dto.setRequestTime(request.getCreatedAt());
         dto.setStatus(String.valueOf(request.getStatus()));
         dto.setCertifierAddress(request.getCertifierAddress());
 

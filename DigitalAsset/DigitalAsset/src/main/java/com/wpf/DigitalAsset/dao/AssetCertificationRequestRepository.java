@@ -10,33 +10,18 @@ import java.util.List;
  */
 @Repository
 public interface AssetCertificationRequestRepository extends JpaRepository<AssetCertificationRequest, Long> {
-    
-    /**
-     * 根据请求者地址和状态查询请求
-     */
+
     List<AssetCertificationRequest> findByRequesterAndStatus(String requesterAddress, String status);
-    
-    /**
-     * 根据请求者地址查询所有请求
-     */
+
     List<AssetCertificationRequest> findByRequester(String requesterAddress);
-    
-    /**
-     * 根据状态查询请求
-     */
+
     List<AssetCertificationRequest> findByStatus(AssetCertificationRequest.RequestStatus status);
-    
-    /**
-     * 根据资产TokenID查询请求
-     */
+
     List<AssetCertificationRequest> findByTokenId(Long tokenId);
-    
-    /**
-     * 根据资产TokenID和状态查询请求
-     */
-    List<AssetCertificationRequest> findByTokenIdAndStatus(Long tokenId, AssetCertificationRequest.RequestStatus status);
+
+    AssetCertificationRequest findByTokenIdAndCertifierAddress(Long tokenId, String requesterAddress);
 
     boolean existsByTokenIdAndStatus(Long requestId, AssetCertificationRequest.RequestStatus requestStatus);
 
-    List<AssetCertificationRequest> findByCertifierAddress(String requesterAddress);
+    List<AssetCertificationRequest> findByCertifierAddress(String certifierAddress);
 } 

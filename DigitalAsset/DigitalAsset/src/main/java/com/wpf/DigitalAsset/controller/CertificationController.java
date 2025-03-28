@@ -95,13 +95,9 @@ public class CertificationController {
      */
     @PostMapping("/sign")
     public ResponseEntity<ApiResponse<String>> submitSignature(
-            @RequestBody CertificationRequestDTO signatureDTO) {
+            @RequestBody CertificationActionDTO signatureDTO) {
         try {
-            certificationService.saveCertificationRequest(
-                signatureDTO.getRequestId(), 
-                signatureDTO.getCertifierAddress(),
-                signatureDTO.getSignature()
-            );
+            certificationService.saveCertificationRequest(signatureDTO);
             return ResponseEntity.ok(new ApiResponse<>(true, "认证签名提交成功", null));
         } catch (Exception e) {
             logger.severe("认证签名提交失败: " + e.getMessage());
@@ -126,32 +122,6 @@ public class CertificationController {
             logger.severe("获取用户认证请求失败: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>(false, "获取认证请求失败: " + e.getMessage(), null));
-        }
-    }
-    
-    /**
-     * 批准认证
-     */
-    @PostMapping("/approve/{requestId}")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Long>> approveRequest(
-            @PathVariable Long requestId, 
-            @RequestBody CertificationActionDTO actionDTO) {
-        try {
-            CertificationRecord record = certificationService.approveRequest(requestId, actionDTO);
-            return ResponseEntity.ok(new ApiResponse<>(true, "认证已批准", record.getId()));
-        } catch (EntityNotFoundException e) {
-            logger.warning("找不到认证请求: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ApiResponse<>(false, e.getMessage(), null));
-        } catch (IllegalStateException e) {
-            logger.warning("批准认证失败: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ApiResponse<>(false, e.getMessage(), null));
-        } catch (Exception e) {
-            logger.severe("批准认证发生错误: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponse<>(false, "批准认证失败: " + e.getMessage(), null));
         }
     }
     
@@ -221,7 +191,7 @@ public class CertificationController {
         dto.setTokenId(request.getTokenId());
         dto.setReason(request.getReason());
         dto.setRequester(request.getRequester());
-        dto.setRequestTime(request.getCertificationTime().toString());
+        dto.setRequestTime(request.getCertificationTime());
         dto.setStatus(String.valueOf(request.getStatus()));
         dto.setCertifierAddress(request.getCertifierAddress());
 

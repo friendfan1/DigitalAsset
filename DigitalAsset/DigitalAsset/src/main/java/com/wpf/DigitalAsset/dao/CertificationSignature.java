@@ -1,9 +1,13 @@
 package com.wpf.DigitalAsset.dao;
 
 import jakarta.persistence.*;
+import lombok.Data;
+
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
 @Entity
+@Data
 @Table(name = "certification_signatures")
 public class CertificationSignature {
     @Id
@@ -13,54 +17,17 @@ public class CertificationSignature {
     @Column(nullable = false)
     private Long requestId;
 
-    @Column(nullable = false)
+    @Column(name = "certifier_address", nullable = false)
     private String certifierAddress;
 
     @Column(nullable = false, length = 1000)
     private String signature;
 
-    @Column(nullable = false)
-    private LocalDateTime signTime;
+    @Column(name = "sign_time", nullable = false)
+    private Timestamp timeStamp;
 
-    public CertificationSignature() {}
+    @Column(name = "message_to_sign", nullable = false)
+    private  String messageToSign;
 
-    public Long getId() {
-        return id;
-    }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getRequestId() {
-        return requestId;
-    }
-
-    public void setRequestId(Long requestId) {
-        this.requestId = requestId;
-    }
-
-    public String getCertifierAddress() {
-        return certifierAddress;
-    }
-
-    public void setCertifierAddress(String certifierAddress) {
-        this.certifierAddress = certifierAddress;
-    }
-
-    public String getSignature() {
-        return signature;
-    }
-
-    public void setSignature(String signature) {
-        this.signature = signature;
-    }
-
-    public LocalDateTime getSignTime() {
-        return signTime;
-    }
-
-    public void setSignTime(LocalDateTime signTime) {
-        this.signTime = signTime;
-    }
 } 
