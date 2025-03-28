@@ -48,6 +48,10 @@ public class CertificationServiceImpl implements CertificationService {
             logger.warning("资产已认证: " + requestDTO.getTokenId());
             throw new IllegalStateException("该资产已经认证");
         }
+        if(requestRepository.existsByTokenIdAndCertifierAddress(requestDTO.getTokenId(), requestDTO.getRequester())){
+            logger.warning("请求已提交: " + requestDTO.getTokenId());
+            throw new IllegalStateException("该资产认证请求已经提交，请等待认证");
+        }
 
         // 创建新的认证请求
         AssetCertificationRequest request = new AssetCertificationRequest();
@@ -160,7 +164,7 @@ public class CertificationServiceImpl implements CertificationService {
 
     @Override
     public List<CertificationRequestDTO> getPendingCertificationRequests(String certifierAddress) {
-        List<AssetCertificationRequest> assetCertificationRequestList = requestRepository.findByCertifierAddress(certifierAddress);
+        List<AssetCertificationRequest> assetCertificationRequestList = requestRepository.findByCertifierAddressAndStatus(certifierAddress, AssetCertificationRequest.RequestStatus.PENDING);
         return assetCertificationRequestList.stream()
                 .map(this::convertToDTO)
                 .toList();

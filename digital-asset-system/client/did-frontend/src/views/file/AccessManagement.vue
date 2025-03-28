@@ -308,59 +308,6 @@
       />
     </div>
 
-    <!-- 资产认证 -->
-    <div v-if="activeTab === 'certify'" class="certify-section">
-      <div class="section-header">
-        <h2 class="section-title" data-text="资产认证">请求认证</h2>
-      </div>
-      <div class="certify-form">
-        <div class="form-group">
-          <label>资产ID:</label>
-          <input 
-            v-model="certifyRequest.tokenId"
-            type="number"
-            placeholder="输入资产Token ID"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label>认证说明:</label>
-          <textarea
-            v-model="certifyRequest.reason"
-            placeholder="输入认证说明"
-          />
-        </div>
-
-        <div class="form-group">
-          <label>认证者选择 (至少选择2位):</label>
-          <el-select
-            v-model="certifyRequest.approvers"
-            multiple
-            filterable
-            placeholder="请选择认证者"
-            :loading="loadingCertifiers"
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="certifier in availableCertifiers"
-              :key="certifier.address"
-              :label="`${certifier.name || '未命名认证者'} (${formatAddress(certifier.address)})`"
-              :value="certifier.address"
-            />
-          </el-select>
-        </div>
-
-        <button
-          class="submit-button"
-          :disabled="!isCertifyFormValid || isCertifying"
-          @click="handleCertification"
-        >
-          <span v-if="!isCertifying">提交认证</span>
-          <LoadingSpinner v-else />
-        </button>
-      </div>
-    </div>
-
     <!-- 全局状态提示 -->
     <div v-if="errorMessage" class="error-message">
       {{ errorMessage }}
@@ -469,6 +416,98 @@
         </div>
       </template>
     </asset-detail-dialog>
+
+    <!-- 资产认证请求对话框 -->
+    <el-dialog
+      v-model="certificationRequestDialogVisible"
+      title="请求资产认证"
+      width="600px"
+      destroy-on-close
+    >
+      <div v-if="selectedAssetForCert">
+        <p>您正在为以下资产请求认证：</p>
+        <div class="cert-asset-info">
+          <p><strong>资产ID：</strong> {{ selectedAssetForCert.tokenId }}</p>
+          <p><strong>文件名：</strong> {{ selectedAssetForCert.metadata.fileName }}</p>
+          <p><strong>文件类型：</strong> {{ selectedAssetForCert.metadata.fileType }}</p>
+        </div>
+
+        <!-- 添加认证状态展示 -->
+        <div class="certification-status">
+          <h3>认证状态</h3>
+          <div v-loading="isLoadingStatus" class="status-list">
+            <template v-if="certificationStatus.length > 0">
+              <div v-for="status in certificationStatus" :key="status.certifierAddress" class="status-item">
+                <div class="certifier-info">
+                  <span class="certifier-name">{{ status.certifierName || formatAddress(status.certifierAddress) }}</span>
+                  <span class="certifier-address">{{ formatAddress(status.certifierAddress) }}</span>
+                </div>
+                <div class="status-badge" :class="status.status.toLowerCase()">
+                  {{ status.status === 'PENDING' ? '待认证' : 
+                     status.status === 'APPROVED' ? '已通过' : 
+                     status.status === 'REJECTED' ? '已拒绝' : '已完成' }}
+                </div>
+                <div v-if="status.timestamp" class="status-time">
+                  {{ formatDate(new Date(status.timestamp)) }}
+                </div>
+                <div v-if="status.reason" class="status-reason">
+                  {{ status.reason }}
+                </div>
+              </div>
+            </template>
+            <div v-else class="no-status">
+              <p>暂无认证记录</p>
+              <p v-if="!selectedAssetForCert.isCertified">您可以提交认证请求，选择认证者进行资产认证</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 只有未认证的资产才显示认证申请表单 -->
+        <div v-if="!selectedAssetForCert.isCertified" class="cert-form">
+          <h3>提交认证申请</h3>
+          <div class="form-group">
+            <label>认证说明:</label>
+            <el-input 
+              v-model="certifyRequest.reason"
+              type="textarea"
+              :rows="4"
+              placeholder="请详细说明认证请求的原因和资产的真实性..."
+            />
+          </div>
+
+          <div class="form-group">
+            <label>选择认证者 (至少选择2位):</label>
+            <el-select
+              v-model="certifyRequest.approvers"
+              multiple
+              filterable
+              placeholder="请选择认证者"
+              :loading="loadingCertifiers"
+              style="width: 100%;"
+            >
+              <el-option
+                v-for="certifier in availableCertifiers"
+                :key="certifier.address"
+                :label="`${certifier.name || '未命名认证者'} (${formatAddress(certifier.address)})`"
+                :value="certifier.address"
+              />
+            </el-select>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="certificationRequestDialogVisible = false">关闭</el-button>
+          <el-button 
+            v-if="selectedAssetForCert && !selectedAssetForCert.isCertified"
+            type="success" 
+            :loading="isCertifying" 
+            :disabled="!isCertifyFormValid" 
+            @click="handleCertification"
+          >提交认证请求</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -499,8 +538,7 @@ const ipfs = create({
 // 标签页配置
 const tabs = [
   { id: 'assets', label: '资产列表' },
-  { id: 'register', label: '资产登记' },
-  { id: 'certify', label: '请求认证' }
+  { id: 'register', label: '资产登记' }
 ]
 const activeTab = ref('assets')
 
@@ -582,15 +620,13 @@ const formatAddress = (address: string) => {
 
 // 在组件加载时获取认证者列表
 onMounted(() => {
-  if (activeTab.value === 'certify') {
-    fetchAvailableCertifiers();
-  }
+  fetchAvailableCertifiers();
 });
 
-// 当标签页切换到认证时获取认证者列表
+// 当标签页切换时执行相应操作
 watch(activeTab, (newTab) => {
-  if (newTab === 'certify') {
-    fetchAvailableCertifiers();
+  if (newTab === 'register') {
+    // 注册相关操作
   }
 });
 
@@ -640,6 +676,14 @@ const handleCertification = async () => {
         reason: '',
         approvers: []
       };
+      
+      // 关闭对话框
+      certificationRequestDialogVisible.value = false;
+      
+      // 刷新认证状态
+      if (selectedAssetForCert.value) {
+        await fetchCertificationStatus(parseInt(selectedAssetForCert.value.tokenId.toString()));
+      }
     } else {
       throw new Error('部分请求提交失败');
     }
@@ -703,9 +747,7 @@ const hasRegistrarRole = ref(false);
 onMounted(async () => {
   await fetchUserAssets()
   await checkRole()
-  if (activeTab.value === 'certify') {
-    fetchAvailableCertifiers();
-  }
+  fetchAvailableCertifiers();
 })
 
 const fetchUserAssets = async (page = 1, forceRefresh = false) => {
@@ -993,9 +1035,17 @@ const downloadAsset = async (asset: Asset) => {
 };
 
 const initiateCertification = (asset: Asset) => {
-  // 设置认证表单并切换到认证标签
-  certifyRequest.value.tokenId = parseInt(asset.tokenId)
-  activeTab.value = 'certify'
+  // 设置认证表单
+  certifyRequest.value.tokenId = parseInt(asset.tokenId);
+  certifyRequest.value.reason = '';
+  certifyRequest.value.approvers = [];
+  
+  // 设置当前选中的资产并显示对话框
+  selectedAssetForCert.value = asset;
+  certificationRequestDialogVisible.value = true;
+  
+  // 获取认证状态
+  fetchCertificationStatus(parseInt(asset.tokenId));
 }
 
 // 修改 checkRole 函数
@@ -1170,10 +1220,18 @@ const confirmBatchDelete = async () => {
 const initiateCertificationFromDetails = () => {
   if (!assetDetails.value) return;
   
-  // 设置认证表单并切换到认证标签
+  // 设置认证表单
   certifyRequest.value.tokenId = parseInt(assetDetails.value.tokenId);
-  detailsDialogVisible.value = false; // 关闭详情页
-  activeTab.value = 'certify'; // 切换到认证标签
+  certifyRequest.value.reason = '';
+  certifyRequest.value.approvers = [];
+  
+  // 设置当前选中的资产并关闭详情页，打开认证对话框
+  selectedAssetForCert.value = assetDetails.value;
+  detailsDialogVisible.value = false;
+  certificationRequestDialogVisible.value = true;
+  
+  // 获取认证状态
+  fetchCertificationStatus(parseInt(assetDetails.value.tokenId));
 };
 
 // 添加辅助函数 - 从详情页面删除资产
@@ -1475,6 +1533,46 @@ const closeAssetDetails = () => {
   assetPreviewUrl.value = '';
   isLoadingPreview.value = true;
   iframeLoadFailed.value = false;
+};
+
+// 资产认证请求对话框
+const certificationRequestDialogVisible = ref(false);
+const selectedAssetForCert = ref<Asset | null>(null);
+
+// 认证状态接口定义
+interface CertificationStatus {
+  certifierAddress: string;
+  certifierName?: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  timestamp?: string;
+  reason?: string;
+}
+
+const certificationStatus = ref<CertificationStatus[]>([]);
+const isLoadingStatus = ref(false);
+
+// 获取认证状态
+const fetchCertificationStatus = async (tokenId: number) => {
+  if (!tokenId) return;
+  
+  isLoadingStatus.value = true;
+  try {
+    const token = userStore.profile?.token || '';
+    const response = await axios.get(`/api/certification/status/${tokenId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      certificationStatus.value = response.data.data;
+    } else {
+      throw new Error(response.data.message || '获取认证状态失败');
+    }
+  } catch (error: any) {
+    console.error('获取认证状态失败:', error);
+    ElMessage.error('获取认证状态失败: ' + (error.message || '未知错误'));
+  } finally {
+    isLoadingStatus.value = false;
+  }
 };
 </script>
 
@@ -2690,5 +2788,130 @@ tr:hover .el-button--danger {
   font-size: 12px;
   color: #67c23a;
   margin-top: 2px;
+}
+
+/* 添加认证状态样式 */
+.certification-status {
+  margin: 20px 0;
+  padding: 15px;
+  background: rgba(10, 25, 47, 0.7);
+  border-radius: 8px;
+  border: 1px solid rgba(100, 255, 218, 0.2);
+}
+
+.certification-status h3 {
+  color: #64ffda;
+  margin-bottom: 15px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 10px;
+  background: rgba(10, 25, 47, 0.5);
+  border-radius: 6px;
+  border: 1px solid rgba(100, 255, 218, 0.2);
+}
+
+.certifier-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.certifier-name {
+  color: #e6f1ff;
+  font-weight: 500;
+}
+
+.certifier-address {
+  color: #8892b0;
+  font-size: 12px;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 64px;
+  text-align: center;
+}
+
+.status-badge.pending {
+  background: rgba(230, 162, 60, 0.1);
+  color: #e6a23c;
+  border: 1px solid rgba(230, 162, 60, 0.2);
+}
+
+.status-badge.approved {
+  background: rgba(103, 194, 58, 0.1);
+  color: #67c23a;
+  border: 1px solid rgba(103, 194, 58, 0.2);
+}
+
+.status-badge.rejected {
+  background: rgba(245, 108, 108, 0.1);
+  color: #f56c6c;
+  border: 1px solid rgba(245, 108, 108, 0.2);
+}
+
+.status-badge.completed {
+  background: rgba(100, 255, 218, 0.1);
+  color: #64ffda;
+  border: 1px solid rgba(100, 255, 218, 0.2);
+}
+
+.status-time {
+  color: #8892b0;
+  font-size: 12px;
+}
+
+.status-reason {
+  color: #8892b0;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.no-status {
+  text-align: center;
+  color: #8892b0;
+  padding: 20px;
+  background: rgba(10, 25, 47, 0.5);
+  border-radius: 6px;
+  border: 1px dashed rgba(100, 255, 218, 0.2);
+}
+
+.cert-form {
+  margin-top: 20px;
+  padding: 15px;
+  background: rgba(10, 25, 47, 0.7);
+  border-radius: 8px;
+  border: 1px solid rgba(100, 255, 218, 0.2);
+}
+
+.cert-form h3 {
+  color: #64ffda;
+  margin-bottom: 15px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.cert-asset-info {
+  background: rgba(10, 25, 47, 0.7);
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(100, 255, 218, 0.2);
 }
 </style>

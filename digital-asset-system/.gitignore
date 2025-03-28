@@ -1,0 +1,4 @@
+# Truffle 补充规则
+artifacts/
+cache/
+typechain-types/

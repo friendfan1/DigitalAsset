@@ -21,7 +21,7 @@ public interface AssetCertificationRequestRepository extends JpaRepository<Asset
 
     AssetCertificationRequest findByTokenIdAndCertifierAddress(Long tokenId, String requesterAddress);
 
-    boolean existsByTokenIdAndStatus(Long requestId, AssetCertificationRequest.RequestStatus requestStatus);
+    boolean existsByTokenIdAndCertifierAddress(Long requestId, String requesterAddress);
 
-    List<AssetCertificationRequest> findByCertifierAddress(String certifierAddress);
+    List<AssetCertificationRequest> findByCertifierAddressAndStatus(String certifierAddress, AssetCertificationRequest.RequestStatus status);
 } 
