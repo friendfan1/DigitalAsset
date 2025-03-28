@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-这是一个基于区块链技术的数字资产管理系统，支持数字资产的注册、认证、交易和管理。系统采用前后端分离架构，前端使用Vue 3 + Element Plus构建，后端使用Node.js + Express，智能合约使用Solidity编写。
+这是一个基于区块链技术的数字资产管理系统，支持数字资产的注册、认证、交易和管理。系统采用前后端分离架构，前端使用Vue 3 + Element Plus构建，后端使用Spring Boot，智能合约使用Solidity编写。
 
 ## 主要功能
 
@@ -38,11 +38,12 @@
 
 ### 后端
 
-- Node.js
-- Express
-- TypeScript
+- Spring Boot
+- Spring Security
 - MySQL
-- Sequelize ORM
+- JPA/Hibernate
+- JWT认证
+- Web3j
 
 ### 区块链
 
@@ -54,18 +55,25 @@
 ## 项目结构
 
 ```
-digital-asset-system/
-├── client/                 # 前端代码
-│   ├── src/
-│   │   ├── components/    # 组件
-│   │   ├── views/        # 页面
-│   │   ├── stores/       # 状态管理
-│   │   ├── utils/        # 工具函数
-│   │   └── router/       # 路由配置
-├── server/                # 后端代码
-├── contracts/            # 智能合约
-├── migrations/          # 数据库迁移
-└── test/               # 测试文件
+2025BlockAsset/
+├── digital-asset-system/    # 前端和智能合约
+│   ├── client/             # 前端代码
+│   │   ├── src/
+│   │   │   ├── components/ # 组件
+│   │   │   ├── views/      # 页面
+│   │   │   ├── stores/     # 状态管理
+│   │   │   ├── utils/      # 工具函数
+│   │   │   └── router/     # 路由配置
+│   ├── contracts/          # 智能合约
+│   ├── migrations/         # 数据库迁移
+│   └── test/              # 测试文件
+└── DigitalAsset/          # 后端代码
+    └── DigitalAsset/
+        ├── src/
+        │   ├── main/
+        │   │   ├── java/   # Java源代码
+        │   │   └── resources/  # 配置文件
+        └── pom.xml        # Maven配置文件
 ```
 
 ## 安装和运行
@@ -73,7 +81,9 @@ digital-asset-system/
 ### 环境要求
 
 - Node.js >= 16
+- Java >= 17
 - MySQL >= 8.0
+- Maven >= 3.8
 - MetaMask 浏览器插件
 
 ### 安装步骤
@@ -81,43 +91,42 @@ digital-asset-system/
 1. 克隆项目
 
 ```bash
-git clone [项目地址]
-cd digital-asset-system
+git clone https://github.com/friendfan1/2025BlockAsset.git
+cd 2025BlockAsset
 ```
 
-2. 安装依赖
+2. 安装前端依赖
 
 ```bash
-# 安装前端依赖
-cd client
-npm install
-
-# 安装后端依赖
-cd ../server
-npm install
-
-# 安装智能合约依赖
-cd ..
+cd digital-asset-system/client
 npm install
 ```
 
-3. 配置环境变量
+3. 安装后端依赖
 
-- 复制 `.env.example` 为 `.env`
-- 修改数据库配置和其他必要参数
+```bash
+cd ../../DigitalAsset/DigitalAsset
+mvn clean install
+```
 
-4. 启动服务
+4. 配置环境变量
+
+- 前端：复制 `digital-asset-system/client/.env.example` 为 `.env`
+- 后端：修改 `DigitalAsset/DigitalAsset/src/main/resources/application.yml`
+
+5. 启动服务
 
 ```bash
 # 启动后端服务
-cd server
-npm run dev
+cd DigitalAsset/DigitalAsset
+mvn spring-boot:run
 
 # 启动前端服务
-cd client
+cd ../../digital-asset-system/client
 npm run dev
 
 # 部署智能合约
+cd ../contracts
 truffle migrate
 ```
 
