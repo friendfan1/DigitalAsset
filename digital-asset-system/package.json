@@ -3,8 +3,13 @@
     "@openzeppelin/contracts": "4.9.3",
     "@truffle/contract": "^4.6.31",
     "@truffle/hdwallet-provider": "^2.1.15",
+    "@types/dompurify": "^3.2.0",
+    "@types/marked": "^6.0.0",
     "@walletconnect/web3-provider": "^1.8.0",
+    "dompurify": "^3.2.4",
     "dotenv": "^16.4.7",
+    "github-markdown-css": "^5.8.1",
+    "marked": "^15.0.7",
     "web3": "^4.16.0"
   },
   "devDependencies": {

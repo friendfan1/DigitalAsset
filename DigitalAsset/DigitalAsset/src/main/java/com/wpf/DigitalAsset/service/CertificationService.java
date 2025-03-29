@@ -2,10 +2,7 @@ package com.wpf.DigitalAsset.service;
 
 import com.wpf.DigitalAsset.dao.AssetCertificationRequest;
 import com.wpf.DigitalAsset.dao.CertificationRecord;
-import com.wpf.DigitalAsset.dto.CertificationActionDTO;
-import com.wpf.DigitalAsset.dto.CertificationRequestDTO;
-import com.wpf.DigitalAsset.dto.CertificationStatusDTO;
-import com.wpf.DigitalAsset.dto.CertifierDTO;
+import com.wpf.DigitalAsset.dto.*;
 
 import java.util.List;
 import java.util.Optional;
@@ -73,4 +70,6 @@ public interface CertificationService {
 //    void saveCertificationRequest(Long requestId, Object certifier, String signature);
 
     List<CertificationStatusDTO> getCertificationStatus(Long tokenId);
+
+    List<CertificationSignatureDTO> getCertificationSignature(Long tokenId);
 }

@@ -26,7 +26,7 @@ type AssetRegistrationParams = {
 };
 
 export type CertificationRequest = {
-  tokenId: number;
+  tokenId: string;
   reason: string;
   approvers: string[];
 };
@@ -99,6 +99,12 @@ interface IPFSCacheEntry {
   data: any;
   timestamp: number;
   expiresAt: number;
+}
+
+interface CertificationSignature {
+  certifierAddress: string;
+  signature: string;
+  timestamp: number;
 }
 
 export class DigitalAssetService extends BaseWeb3Service {
@@ -457,12 +463,10 @@ export class DigitalAssetService extends BaseWeb3Service {
         // 监控交易
               console.log('等待交易确认...');
               const receipt = await tx.wait();
-              console.log('交易已确认，区块号:', receipt?.blockNumber);
-              console.log('交易收据详情:', receipt);
-              
               if (!receipt) {
                 throw new Error('交易回执为空');
               }
+              console.log('交易已确认:', receipt.hash);
               
               // 强制更新进度到100%，表示资产注册完成
               this.uploadProgressCache.set(uploadId, 100);
@@ -504,12 +508,11 @@ export class DigitalAssetService extends BaseWeb3Service {
               // 监控交易
               console.log('等待交易确认...');
               const receipt = await tx.wait();
-              console.log('交易已确认，区块号:', receipt?.blockNumber);
-              
               if (!receipt) {
                 throw new Error('交易回执为空');
               }
-              
+              console.log('交易已确认:', receipt.hash);
+            
               // 强制更新进度到100%，表示资产注册完成
               this.uploadProgressCache.set(uploadId, 100);
               console.log(`强制设置上传进度 ${uploadId}: 100% (注册完成)`);
@@ -1084,45 +1087,89 @@ export class DigitalAssetService extends BaseWeb3Service {
     this.eventListeners = [];
   }
 
-  async certifyAsset(request: CertificationRequest) {
-    // 1. 生成EIP-712签名数据
-    const domain = {
-      name: 'DigitalAsset',
-      version: '1',
-      chainId: await this.provider.getNetwork().then(n => n.chainId),
-      verifyingContract: typeof this.contract.target === 'string' ? this.contract.target : this.contract.target.toString()
-    };
+  async certifyAsset(token: string, request: CertificationRequest) {
+    try {
+      console.log('开始资产认证流程:', {
+        tokenId: request.tokenId,
+        reason: request.reason,
+        approvers: request.approvers
+      });
 
-    const types = {
-      Certify: [
-        { name: 'tokenId', type: 'uint256' },
-        { name: 'reason', type: 'string' }
-      ]
-    };
+      // 获取认证签名
+      const signatures = await this.getCertificationSignatures(token, request.tokenId);
+      console.log('获取到的认证签名:', signatures);
 
-    // 2. 收集所有认证者签名
-    const signatures = await Promise.all(
-      request.approvers.map(async approver => {
-        const signer = await this.provider.getSigner(approver);
-        return signer.signTypedData(
-          domain,
-          types,
-          {
-            tokenId: request.tokenId,
-            reason: request.reason
+      if (!Array.isArray(signatures) || signatures.length === 0) {
+        throw new Error('未获取到有效的认证签名');
+      }
+
+      // 检查所有认证者是否都已签名
+      const allApproversSigned = request.approvers.every(approver => 
+        signatures.some(sig => sig.certifierAddress.toLowerCase() === approver.toLowerCase())
+      );
+
+      if (!allApproversSigned) {
+        throw new Error('部分认证者尚未完成签名');
+      }
+
+      // 准备签名数组
+      const signatureArray = signatures.map(sig => sig.signature);
+      console.log('准备调用合约，参数:', {
+        tokenId: request.tokenId,
+        reason: request.reason,
+        signatureCount: signatureArray.length
+      });
+
+      // 调用合约
+      const tx = await this.contract.certifyAsset(
+        request.tokenId,
+        request.reason,
+        signatureArray,
+        { gasLimit: 500000 } // 添加固定的gas限制
+      );
+
+      console.log('交易已发送:', tx.hash);
+      
+      // 等待交易确认
+      const receipt = await tx.wait();
+      if (!receipt) {
+        throw new Error('交易回执为空');
+      }
+      console.log('交易已确认:', receipt.hash);
+
+      // 链上认证成功后，调用后端接口更新数据库状态
+      try {
+        console.log('开始更新后端数据库状态...');
+        const response = await axios.post('/api/certification/complete', {
+          tokenId: request.tokenId,
+          txHash: receipt.hash,
+          reason: request.reason,
+          certifierAddress: await this.getCurrentAddress(),
+          signatures: signatures.map(sig => ({
+            certifierAddress: sig.certifierAddress,
+            signature: sig.signature,
+            timestamp: sig.timestamp
+          }))
+        }, {
+          headers: {
+            Authorization: `Bearer ${token}`
           }
-        );
-      })
-    );
+        });
 
-    // 3. 调用合约
-    const tx = await this.contract.certifyAsset(
-      request.tokenId,
-      request.reason,
-      signatures
-    );
+        if (!response.data.success) {
+          console.warn('后端状态更新失败:', response.data.message);
+        } else {
+          console.log('后端状态更新成功');
+        }
+      } catch (backendError) {
+        console.error('调用后端接口失败:', backendError);
+      }
 
-    return this.monitorTransaction(tx, 'AssetCertified');
+      return this.monitorTransaction(tx, 'AssetCertified');
+    } catch (error) {
+      console.error('资产认证失败:', error);
+      throw error;
+    }
   }
 
   /**
@@ -2561,7 +2608,6 @@ export class DigitalAssetService extends BaseWeb3Service {
   private async getPendingCertifications(tokenId: number): Promise<any[]> {
     try {
       // 这里实现从API或区块链获取待认证申请
-      // 例如从后端API获取
       const response = await axios.get(`/api/certification/pending/${tokenId}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token') || ''}`
@@ -2651,6 +2697,49 @@ export class DigitalAssetService extends BaseWeb3Service {
       };
     }
   }
+
+  // 获取认证签名
+  async getCertificationSignatures(token: string, tokenId: string): Promise<CertificationSignature[]> {
+    try {
+      console.log("token",localStorage.getItem('token'));
+      const response = await axios.get(`/api/certification/signatures/${tokenId}`,{
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (response.data.success) {
+        return response.data.data || []; // 确保返回数组
+      } else {
+        throw new Error(response.data.message || '获取认证签名失败');
+      }
+    } catch (error) {
+      console.error('获取认证签名失败:', error);
+      throw error;
+    }
+  }
+
+  // async fetchCertificationSignatures(tokenId: number): Promise<CertificationSignature[]> {
+  //   try {
+  //     const token = localStorage.getItem('token');
+  //     if (!token) {
+  //       throw new Error('未找到认证令牌');
+  //     }
+
+  //     const response = await axios.get(`/api/certification/signatures/${tokenId}`, {
+  //       headers: { Authorization: `Bearer ${token}` }
+  //     });
+
+  //     if (response.data.success) {
+  //       return response.data.data || []; // 确保返回数组
+  //     } else {
+  //       throw new Error(response.data.message || '获取认证签名失败');
+  //     }
+  //   } catch (error: any) {
+  //     console.error('获取认证签名失败:', error);
+  //     throw new Error(error.message || '获取认证签名失败');
+  //   }
+  // }
 }
 
 // 辅助函数用于合并Uint8Array数组

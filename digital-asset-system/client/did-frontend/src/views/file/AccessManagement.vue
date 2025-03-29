@@ -432,7 +432,7 @@
           <p><strong>文件类型：</strong> {{ selectedAssetForCert.metadata.fileType }}</p>
         </div>
 
-        <!-- 添加认证状态展示 -->
+        <!-- 认证状态展示 -->
         <div class="certification-status">
           <h3>认证状态</h3>
           <div v-loading="isLoadingStatus" class="status-list">
@@ -462,7 +462,7 @@
           </div>
         </div>
         
-        <!-- 只有未认证的资产才显示认证申请表单 -->
+        <!-- 认证表单 -->
         <div v-if="!selectedAssetForCert.isCertified" class="cert-form">
           <h3>提交认证申请</h3>
           <div class="form-group">
@@ -499,8 +499,14 @@
         <span class="dialog-footer">
           <el-button @click="certificationRequestDialogVisible = false">关闭</el-button>
           <el-button 
-            v-if="selectedAssetForCert && !selectedAssetForCert.isCertified"
+            v-if="canAutoCertify"
             type="success" 
+            :loading="isCertifying" 
+            @click="handleAutoCertify"
+          >自动认证</el-button>
+          <el-button 
+            v-if="selectedAssetForCert && !selectedAssetForCert.isCertified"
+            type="primary" 
             :loading="isCertifying" 
             :disabled="!isCertifyFormValid" 
             @click="handleCertification"
@@ -523,14 +529,16 @@ import { CONTRACT_ADDRESSES } from '@/config/contracts'
 import { create } from 'ipfs-http-client'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import FileUpload from '@/components/upload/FileUpload.vue'
-// 导入Element Plus图标组件
 import { Document, Loading, PictureFilled } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { useUserStore } from '@/stores/user'
-// 在<script setup>部分中导入组件
-import AssetDetailDialog from '@/components/AssetDetailDialog.vue';
+import AssetDetailDialog from '@/components/AssetDetailDialog.vue'
+import { formatDate as formatDateUtil } from '@/utils/dateFormat'
+import { shortenAddress } from '@/utils/address'
+import { useWalletStore } from '@/stores/wallet'
 
 const userStore = useUserStore()
+const walletStore = useWalletStore()
 const ipfs = create({
   url: import.meta.env.VITE_IPFS_API_URL  //  自动注入环境变量
 })
@@ -544,7 +552,7 @@ const activeTab = ref('assets')
 
 // 资产认证相关状态
 const certifyRequest = ref<CertificationRequest>({
-  tokenId: 0,
+  tokenId: '',
   reason: '',
   approvers: []
 });
@@ -556,7 +564,7 @@ const errorMessage = ref('')
 // 表单验证
 const isCertifyFormValid = computed(() => {
   return (
-    certifyRequest.value.tokenId > 0 &&
+    certifyRequest.value.tokenId !== '' &&
     certifyRequest.value.reason.trim() !== '' &&
     certifyRequest.value.approvers.length >= 2
   );
@@ -672,7 +680,7 @@ const handleCertification = async () => {
       ElMessage.success('所有认证请求已提交');
       // 重置表单
       certifyRequest.value = {
-        tokenId: 0,
+        tokenId: '',
         reason: '',
         approvers: []
       };
@@ -1036,7 +1044,7 @@ const downloadAsset = async (asset: Asset) => {
 
 const initiateCertification = (asset: Asset) => {
   // 设置认证表单
-  certifyRequest.value.tokenId = parseInt(asset.tokenId);
+  certifyRequest.value.tokenId = String(asset.tokenId);
   certifyRequest.value.reason = '';
   certifyRequest.value.approvers = [];
   
@@ -1221,7 +1229,7 @@ const initiateCertificationFromDetails = () => {
   if (!assetDetails.value) return;
   
   // 设置认证表单
-  certifyRequest.value.tokenId = parseInt(assetDetails.value.tokenId);
+  certifyRequest.value.tokenId = String(assetDetails.value.tokenId);
   certifyRequest.value.reason = '';
   certifyRequest.value.approvers = [];
   
@@ -1573,6 +1581,54 @@ const fetchCertificationStatus = async (tokenId: number) => {
   } finally {
     isLoadingStatus.value = false;
   }
+};
+
+// 检查是否可以自动认证
+const canAutoCertify = computed(() => {
+  if (!selectedAssetForCert.value || selectedAssetForCert.value.isCertified) {
+    return false;
+  }
+  
+  // 检查是否所有认证者都已通过
+  return certificationStatus.value.length > 0 && 
+         certificationStatus.value.every(status => status.status === 'APPROVED');
+});
+
+// 自动认证
+const handleAutoCertify = async () => {
+  if (!canAutoCertify.value || !selectedAssetForCert.value) return;
+  
+  isCertifying.value = true;
+  try {
+    const service = await getDigitalAssetService();
+    await service.certifyAsset(userStore.profile?.token || '',{
+      tokenId: String(selectedAssetForCert.value.tokenId),
+      reason: '所有认证者已通过，执行自动认证',
+      approvers: certificationStatus.value.map(status => status.certifierAddress)
+    });
+    
+    ElMessage.success('资产自动认证成功');
+    certificationRequestDialogVisible.value = false;
+    // 刷新资产列表
+    fetchAssets();
+  } catch (error: any) {
+    console.error('自动认证失败:', error);
+    ElMessage.error(error.message || '自动认证失败');
+  } finally {
+    isCertifying.value = false;
+  }
+};
+
+// 监听选中的资产变化
+watch(() => selectedAssetForCert.value, (newVal) => {
+  if (newVal) {
+    fetchCertificationStatus(parseInt(newVal.tokenId.toString()));
+  }
+});
+
+// 添加fetchAssets函数定义
+const fetchAssets = async () => {
+  await fetchUserAssets(1, true);
 };
 </script>
 
@@ -2799,88 +2855,88 @@ tr:hover .el-button--danger {
   border: 1px solid rgba(100, 255, 218, 0.2);
 }
 
-.certification-status h3 {
-  color: #64ffda;
-  margin-bottom: 15px;
-  font-size: 18px;
-  font-weight: 600;
-}
-
 .status-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  margin-top: 10px;
 }
 
 .status-item {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 10px;
+  padding: 15px;
+  border-bottom: 1px solid rgba(100, 255, 218, 0.1);
   background: rgba(10, 25, 47, 0.5);
   border-radius: 6px;
-  border: 1px solid rgba(100, 255, 218, 0.2);
+  margin-bottom: 10px;
+}
+
+.status-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .certifier-info {
-  flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #e6f1ff;
 }
 
 .certifier-name {
-  color: #e6f1ff;
-  font-weight: 500;
+  font-weight: 600;
+  color: #64ffda;
 }
 
 .certifier-address {
   color: #8892b0;
-  font-size: 12px;
+  font-size: 0.9em;
 }
 
 .status-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
   font-size: 12px;
+  margin: 8px 0;
   font-weight: 500;
-  min-width: 64px;
-  text-align: center;
 }
 
 .status-badge.pending {
-  background: rgba(230, 162, 60, 0.1);
+  background: rgba(230, 162, 60, 0.2);
   color: #e6a23c;
-  border: 1px solid rgba(230, 162, 60, 0.2);
+  border: 1px solid rgba(230, 162, 60, 0.3);
 }
 
 .status-badge.approved {
-  background: rgba(103, 194, 58, 0.1);
+  background: rgba(103, 194, 58, 0.2);
   color: #67c23a;
-  border: 1px solid rgba(103, 194, 58, 0.2);
+  border: 1px solid rgba(103, 194, 58, 0.3);
 }
 
 .status-badge.rejected {
-  background: rgba(245, 108, 108, 0.1);
+  background: rgba(245, 108, 108, 0.2);
   color: #f56c6c;
-  border: 1px solid rgba(245, 108, 108, 0.2);
+  border: 1px solid rgba(245, 108, 108, 0.3);
 }
 
 .status-badge.completed {
-  background: rgba(100, 255, 218, 0.1);
+  background: rgba(100, 255, 218, 0.2);
   color: #64ffda;
-  border: 1px solid rgba(100, 255, 218, 0.2);
+  border: 1px solid rgba(100, 255, 218, 0.3);
 }
 
 .status-time {
-  color: #8892b0;
   font-size: 12px;
+  color: #8892b0;
+  margin: 4px 0;
 }
 
 .status-reason {
-  color: #8892b0;
-  font-size: 12px;
-  font-style: italic;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #e6f1ff;
+  line-height: 1.5;
+  background: rgba(10, 25, 47, 0.3);
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(100, 255, 218, 0.1);
 }
 
 .no-status {

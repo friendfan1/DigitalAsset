@@ -79,6 +79,12 @@ const routes = [
     name: 'AssetCertification',
     component: () => import('@/views/file/AssetCertification.vue'),
     meta: { requiresAuth: true, requiresBlockchainRole: 'CERTIFIER_ROLE' }
+  },
+  {
+    path: '/ai/chat',
+    name: 'AIChat',
+    component: () => import('@/views/ai/AIChat.vue'),
+    meta: { requiresAuth: true }
   }
 ];
 

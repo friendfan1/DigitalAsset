@@ -1,20 +1,16 @@
 package com.wpf.DigitalAsset.service;
 
 import com.wpf.DigitalAsset.dao.*;
-import com.wpf.DigitalAsset.dto.CertificationActionDTO;
-import com.wpf.DigitalAsset.dto.CertificationRequestDTO;
-import com.wpf.DigitalAsset.dto.CertificationStatusDTO;
-import com.wpf.DigitalAsset.dto.CertifierDTO;
+import com.wpf.DigitalAsset.dto.*;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * 认证服务实现类
@@ -188,6 +184,21 @@ public class CertificationServiceImpl implements CertificationService {
             certificationStatusDTOList.add(certificationStatusDTO);
         }
         return certificationStatusDTOList;
+    }
+
+    @Override
+    public List<CertificationSignatureDTO> getCertificationSignature(Long tokenId) {
+        return requestRepository.findByTokenId(tokenId)
+                .stream()
+                .map(AssetCertificationRequest::getId)
+                .map(requestId -> certificationSignatureRepository.findByRequestId(requestId))
+                .filter(Objects::nonNull)
+                .map(signature -> CertificationSignatureDTO.builder()
+                        .signature(signature.getSignature())
+                        .certifierAddress(signature.getCertifierAddress())
+                        .timestamp(signature.getTimeStamp())
+                        .build())
+                .collect(Collectors.toList());
     }
 
 

@@ -1,7 +1,9 @@
 package com.wpf.DigitalAsset.controller;
 
 import com.wpf.DigitalAsset.dao.AssetCertificationRequest;
+import com.wpf.DigitalAsset.dao.AssetCertificationRequestRepository;
 import com.wpf.DigitalAsset.dao.CertificationRecord;
+import com.wpf.DigitalAsset.dao.CertificationSignature;
 import com.wpf.DigitalAsset.dto.*;
 import com.wpf.DigitalAsset.service.CertificationService;
 import jakarta.persistence.EntityNotFoundException;
@@ -181,7 +183,20 @@ public class CertificationController {
                 .body(new ApiResponse<>(false, "获取认证记录失败: " + e.getMessage(), null));
         }
     }
-    
+
+    /**
+     * 获取签名
+     */
+    @GetMapping("/signatures/{tokenId}")
+    public ResponseEntity<ApiResponse<List<CertificationSignatureDTO>>> getCertificationSignatures(@PathVariable Long tokenId){
+        try{
+            List<CertificationSignatureDTO> certificationSignatureDTOList = certificationService.getCertificationSignature(tokenId);
+            return ResponseEntity.ok(new ApiResponse<>(true, "成功获取签名", certificationSignatureDTOList));
+        }catch (Exception e){
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>(false, "获取认证签名失败: " + e.getMessage(), null));
+        }
+    }
     /**
      * 将AssetCertificationRequest转换为DTO
      */

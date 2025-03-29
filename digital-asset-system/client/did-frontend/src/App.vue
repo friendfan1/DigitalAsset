@@ -10,6 +10,9 @@
       
       <!-- 上传状态监视器 -->
       <UploadStatusMonitor ref="uploadMonitorRef" />
+      
+      <!-- AI助手浮动按钮 -->
+      <AIFloatingButton v-if="authStore.isLoggedIn" />
     </div>
   </el-config-provider>
 </template>
@@ -18,7 +21,12 @@
 import { ElConfigProvider } from 'element-plus'
 import HeaderNav from './components/common/HeaderNav.vue';
 import UploadStatusMonitor from './components/upload/UploadStatusMonitor.vue';
+import AIFloatingButton from './components/common/AIFloatingButton.vue';
 import { ref, provide } from 'vue';
+import { useUserStore } from '@/stores/user';
+
+// 用户认证store
+const authStore = useUserStore();
 
 // 提供上传状态监视器的引用
 const uploadMonitorRef = ref(null);

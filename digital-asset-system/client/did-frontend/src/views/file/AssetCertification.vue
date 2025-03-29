@@ -735,12 +735,12 @@ const certifyBatchAssets = async () => {
     for (const asset of selectedUncertifiedAssets.value) {
       try {
         const request: CertificationRequest = {
-          tokenId: Number(asset.tokenId),
+          tokenId: String(asset.tokenId),
           reason: batchCertificationForm.value.comment,
           approvers: batchCertificationForm.value.additionalCertifiers
         };
         
-        await digitalAssetService.certifyAsset(request);
+        await digitalAssetService.certifyAsset(userStore.profile?.token || '', request);
       } catch (error: any) {
         console.error(`认证资产 ${asset.tokenId} 失败:`, error);
       }
