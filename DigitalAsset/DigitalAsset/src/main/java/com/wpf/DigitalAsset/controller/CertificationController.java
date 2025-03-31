@@ -1,23 +1,25 @@
 package com.wpf.DigitalAsset.controller;
 
-import com.wpf.DigitalAsset.dao.AssetCertificationRequest;
-import com.wpf.DigitalAsset.dao.AssetCertificationRequestRepository;
-import com.wpf.DigitalAsset.dao.CertificationRecord;
-import com.wpf.DigitalAsset.dao.CertificationSignature;
+import com.wpf.DigitalAsset.dao.*;
 import com.wpf.DigitalAsset.dto.*;
 import com.wpf.DigitalAsset.service.CertificationService;
 import jakarta.persistence.EntityNotFoundException;
 
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import jakarta.persistence.criteria.Predicate;
 import java.util.logging.Logger;
 
 /**
@@ -31,6 +33,8 @@ public class CertificationController {
     
     @Autowired
     private CertificationService certificationService;
+    @Autowired
+    private CertificationRecordRepository certificationRecordRepository;
     
     /**
      * 获取所有认证者列表
@@ -197,6 +201,16 @@ public class CertificationController {
                     .body(new ApiResponse<>(false, "获取认证签名失败: " + e.getMessage(), null));
         }
     }
+    @PostMapping("/complete")
+    public ResponseEntity<ApiResponse<Void>> updateDatabase(@RequestBody UpdateDatabaseDTO request){
+        try{
+            certificationService.updateCertification(request);
+            return ResponseEntity.ok(new ApiResponse<>(true, "成功更新数据库",null));
+        }catch (Exception e){
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>(false, "更新数据库失败: " + e.getMessage(), null));
+        }
+    }
     /**
      * 将AssetCertificationRequest转换为DTO
      */
@@ -212,6 +226,63 @@ public class CertificationController {
 
         
         return dto;
+    }
+
+    @GetMapping("/records")
+    public ResponseEntity<?> getCertificationRecords(
+            @Valid CertificationRecordsQueryDTO query,
+            BindingResult bindingResult) {
+
+        if (bindingResult.hasErrors()) {
+            return ResponseEntity.badRequest()
+                    .body(bindingResult.getAllErrors());
+        }
+
+        if (!query.isValidDateRange()) {
+            return ResponseEntity.badRequest()
+                    .body(Collections.singletonMap("message", "结束日期不能早于开始日期"));
+        }
+
+        Pageable pageable = PageRequest.of(
+                query.getPage() - 1,
+                query.getPageSize()
+        );
+
+        Specification<CertificationRecord> spec = (root, cq, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (query.getStatus() != null) {
+                try {
+                    predicates.add(cb.equal(
+                            root.get("status"),
+                            query.getStatus()
+                    ));
+                } catch (IllegalArgumentException e) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "无效的状态参数: " + query.getStatus()
+                    );
+                }
+            }
+
+            if (query.getStartDate() != null && query.getEndDate() != null) {
+                predicates.add((Predicate) cb.between(
+                        root.get("createdAt"),
+                        query.getStartDate(),
+                        query.getEndDate().plusDays(1)
+                ));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<CertificationRecord> pageResult = certificationRecordRepository.findAll(spec, pageable);
+
+        return ResponseEntity.ok()
+                .body(new PageResult<>(
+                        pageResult.getContent(),
+                        pageResult.getTotalElements()
+                ));
     }
     
     /**

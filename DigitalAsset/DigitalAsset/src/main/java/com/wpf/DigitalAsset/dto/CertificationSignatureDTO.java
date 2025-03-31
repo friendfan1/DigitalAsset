@@ -11,5 +11,8 @@ public class CertificationSignatureDTO {
     private String certifierAddress;
     private String signature;
     private Timestamp timestamp;
-
+    private String messageToSign;
+    private String messageHash;
+    private String reasonHash;
+    private String comment;
 }

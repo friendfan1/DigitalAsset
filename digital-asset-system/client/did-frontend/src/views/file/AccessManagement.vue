@@ -308,6 +308,143 @@
       />
     </div>
 
+    <!-- 资产认证记录 -->
+    <div v-if="activeTab === 'certification'" class="certification-section">
+      <div class="section-header">
+        <h2 class="section-title" data-text="资产认证记录">资产认证记录</h2>
+      </div>
+      
+      <!-- 认证记录筛选区 -->
+      <div class="search-filter-container">
+        <!-- 搜索框 -->
+        <div class="search-box">
+          <el-input
+            v-model="certSearchQuery"
+            placeholder="搜索资产ID或认证者地址..."
+            clearable
+            prefix-icon="el-icon-search"
+            @input="handleCertSearch"
+          />
+        </div>
+        
+        <!-- 筛选选项 -->
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="filter-label">认证状态:</span>
+            <el-select v-model="certStatusFilter" placeholder="全部状态" style="width: 150px">
+              <el-option label="全部状态" value="all" />
+              <el-option label="待认证" value="PENDING" />
+              <el-option label="已通过" value="APPROVED" />
+              <el-option label="已拒绝" value="REJECTED" />
+              <el-option label="已完成" value="COMPLETED" />
+            </el-select>
+          </div>
+          
+          <div class="filter-group">
+            <span class="filter-label">时间范围:</span>
+            <el-date-picker
+              v-model="certDateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD"
+              style="width: 280px"
+            />
+          </div>
+          
+          <div class="filter-group">
+            <el-button type="primary" @click="fetchCertificationRecords">筛选</el-button>
+            <el-button @click="resetCertFilters">重置</el-button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 认证记录表格 -->
+      <el-table
+        v-loading="loadingCertRecords"
+        :data="filteredCertRecords"
+        stripe
+        style="width: 100%"
+        @sort-change="handleCertSort"
+        v-if="filteredCertRecords.length > 0"
+      >
+        <el-table-column label="资产ID" prop="tokenId" width="100" sortable>
+          <template #default="{ row }">
+            <el-tooltip :content="'查看资产详情'" placement="top">
+              <span class="link-text" @click="viewAssetById(row.tokenId)">{{ row.tokenId }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column label="认证者" min-width="200">
+          <template #default="{ row }">
+            <div class="certifier-info-row">
+              <span class="certifier-name">{{ row.certifierName || "未命名认证者" }}</span>
+              <el-tooltip :content="row.certifierAddress" placement="top">
+                <span class="certifier-address">{{ formatAddress(row.certifierAddress) }}</span>
+              </el-tooltip>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="申请日期" width="180" sortable>
+          <template #default="{ row }">
+            {{ formatDate(row.requestDate) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="更新日期" width="180" sortable>
+          <template #default="{ row }">
+            {{ formatDate(row.updateDate) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="认证状态" width="120" sortable="custom" prop="status">
+          <template #default="{ row }">
+            <div class="status-tag" :class="row.status.toLowerCase()">
+              {{ statusMap[row.status as keyof typeof statusMap] || row.status }}
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="交易哈希" min-width="170">
+          <template #default="{ row }">
+            <div v-if="row.txHash">
+              <el-tooltip :content="row.txHash" placement="top">
+                <span class="txhash-text" @click="openExplorer(row.txHash)">
+                  {{ formatAddress(row.txHash) }}
+                </span>
+              </el-tooltip>
+            </div>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="说明" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.reason || "-" }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="150">
+          <template #default="{ row }">
+            <el-button size="small" @click="viewCertificationDetail(row)">查看详情</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      
+      <!-- 无数据状态 -->
+      <div v-else-if="!loadingCertRecords" class="empty-state">
+        <el-empty description="暂无认证记录" />
+      </div>
+      
+      <!-- 分页 -->
+      <div class="pagination-container" v-if="totalCertRecords > 0">
+        <el-pagination
+          layout="total, prev, pager, next"
+          :total="totalCertRecords"
+          :current-page="certCurrentPage"
+          :page-size="certPageSize"
+          @current-change="handleCertPageChange"
+        />
+      </div>
+    </div>
+
     <!-- 全局状态提示 -->
     <div v-if="errorMessage" class="error-message">
       {{ errorMessage }}
@@ -519,22 +656,17 @@
 
 <script lang="ts" setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { ElMessage, ElDialog } from 'element-plus'
+import { ElMessage, ElDialog, ElMessageBox } from 'element-plus'
 import { getDigitalAssetService } from '@/utils/web3/DigitalAssetService'
 import type { CertificationRequest } from '@/utils/web3/DigitalAssetService'
 import { ethers } from 'ethers'
 import { RBACService, getRBACService } from '@/utils/web3/RBACService'
-import { RBAC__factory } from '@/contracts/types'
-import { CONTRACT_ADDRESSES } from '@/config/contracts'
 import { create } from 'ipfs-http-client'
-import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+
 import FileUpload from '@/components/upload/FileUpload.vue'
-import { Document, Loading, PictureFilled } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { useUserStore } from '@/stores/user'
 import AssetDetailDialog from '@/components/AssetDetailDialog.vue'
-import { formatDate as formatDateUtil } from '@/utils/dateFormat'
-import { shortenAddress } from '@/utils/address'
 import { useWalletStore } from '@/stores/wallet'
 
 const userStore = useUserStore()
@@ -546,13 +678,14 @@ const ipfs = create({
 // 标签页配置
 const tabs = [
   { id: 'assets', label: '资产列表' },
-  { id: 'register', label: '资产登记' }
+  { id: 'register', label: '资产登记' },
+  { id: 'certification', label: '资产认证记录' }
 ]
 const activeTab = ref('assets')
 
 // 资产认证相关状态
 const certifyRequest = ref<CertificationRequest>({
-  tokenId: '',
+  tokenId: 0,
   reason: '',
   approvers: []
 });
@@ -564,7 +697,7 @@ const errorMessage = ref('')
 // 表单验证
 const isCertifyFormValid = computed(() => {
   return (
-    certifyRequest.value.tokenId !== '' &&
+    certifyRequest.value.tokenId !== null &&
     certifyRequest.value.reason.trim() !== '' &&
     certifyRequest.value.approvers.length >= 2
   );
@@ -626,10 +759,10 @@ const formatAddress = (address: string) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 };
 
-// 在组件加载时获取认证者列表
-onMounted(() => {
-  fetchAvailableCertifiers();
-});
+// // 在组件加载时获取认证者列表
+// onMounted(() => {
+//   fetchAvailableCertifiers();
+// });
 
 // 当标签页切换时执行相应操作
 watch(activeTab, (newTab) => {
@@ -652,7 +785,7 @@ const handleCertification = async () => {
       tokenId: Number(certifyRequest.value.tokenId),
       reason: certifyRequest.value.reason,
       requester: userStore.profile?.walletAddress,
-      requestDate: new Date().toISOString(),
+      requestDate: new Date(),
     };
     
     console.log("请求者地址：" + userStore.profile?.walletAddress);
@@ -663,7 +796,7 @@ const handleCertification = async () => {
       ...baseRequest,
       certifierAddress: approver // 每个请求只包含一个认证者
     }));
-    
+    console.log("token", token)
     // 并行发送所有请求
     const responses = await Promise.all(
       requests.map(request => 
@@ -680,7 +813,7 @@ const handleCertification = async () => {
       ElMessage.success('所有认证请求已提交');
       // 重置表单
       certifyRequest.value = {
-        tokenId: '',
+        tokenId: 0 ,
         reason: '',
         approvers: []
       };
@@ -690,7 +823,7 @@ const handleCertification = async () => {
       
       // 刷新认证状态
       if (selectedAssetForCert.value) {
-        await fetchCertificationStatus(parseInt(selectedAssetForCert.value.tokenId.toString()));
+        await fetchCertificationStatus(Number(selectedAssetForCert.value.tokenId));
       }
     } else {
       throw new Error('部分请求提交失败');
@@ -752,11 +885,11 @@ const isLoading = ref(false)
 // 添加权限状态
 const hasRegistrarRole = ref(false);
 
-onMounted(async () => {
-  await fetchUserAssets()
-  await checkRole()
-  fetchAvailableCertifiers();
-})
+// onMounted(async () => {
+//   await fetchUserAssets()
+//   await checkRole()
+//   fetchAvailableCertifiers();
+// })
 
 const fetchUserAssets = async (page = 1, forceRefresh = false) => {
   try {
@@ -1044,7 +1177,7 @@ const downloadAsset = async (asset: Asset) => {
 
 const initiateCertification = (asset: Asset) => {
   // 设置认证表单
-  certifyRequest.value.tokenId = String(asset.tokenId);
+  certifyRequest.value.tokenId = Number(asset.tokenId);
   certifyRequest.value.reason = '';
   certifyRequest.value.approvers = [];
   
@@ -1053,7 +1186,7 @@ const initiateCertification = (asset: Asset) => {
   certificationRequestDialogVisible.value = true;
   
   // 获取认证状态
-  fetchCertificationStatus(parseInt(asset.tokenId));
+  fetchCertificationStatus(Number(asset.tokenId));
 }
 
 // 修改 checkRole 函数
@@ -1229,7 +1362,7 @@ const initiateCertificationFromDetails = () => {
   if (!assetDetails.value) return;
   
   // 设置认证表单
-  certifyRequest.value.tokenId = String(assetDetails.value.tokenId);
+  certifyRequest.value.tokenId = Number(assetDetails.value.tokenId);
   certifyRequest.value.reason = '';
   certifyRequest.value.approvers = [];
   
@@ -1239,7 +1372,7 @@ const initiateCertificationFromDetails = () => {
   certificationRequestDialogVisible.value = true;
   
   // 获取认证状态
-  fetchCertificationStatus(parseInt(assetDetails.value.tokenId));
+  fetchCertificationStatus(Number(assetDetails.value.tokenId));
 };
 
 // 添加辅助函数 - 从详情页面删除资产
@@ -1561,7 +1694,7 @@ const isLoadingStatus = ref(false);
 
 // 获取认证状态
 const fetchCertificationStatus = async (tokenId: number) => {
-  if (!tokenId) return;
+  if (tokenId === null) return;
   
   isLoadingStatus.value = true;
   try {
@@ -1600,20 +1733,43 @@ const handleAutoCertify = async () => {
   
   isCertifying.value = true;
   try {
-    const service = await getDigitalAssetService();
-    await service.certifyAsset(userStore.profile?.token || '',{
-      tokenId: String(selectedAssetForCert.value.tokenId),
-      reason: '所有认证者已通过，执行自动认证',
-      approvers: certificationStatus.value.map(status => status.certifierAddress)
-    });
+    // 确认用户是否要进行自动认证
+    await ElMessageBox.confirm(
+      '您确定要使用所有认证者的评论自动认证此资产吗？此操作将调用智能合约，需要支付gas费用。',
+      '自动认证确认',
+      {
+        confirmButtonText: '确认认证',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
     
-    ElMessage.success('资产自动认证成功');
-    certificationRequestDialogVisible.value = false;
-    // 刷新资产列表
-    fetchAssets();
+    const service = await getDigitalAssetService();
+
+    try {
+      debugger;
+      await service.certifyAsset(userStore.profile?.token || '', {
+        tokenId: parseInt(selectedAssetForCert.value.tokenId),
+        reason: '所有认证者已通过，执行自动认证',
+        approvers: certificationStatus.value.map(status => status.certifierAddress)
+      });
+      
+      ElMessage.success('资产自动认证成功');
+      certificationRequestDialogVisible.value = false;
+      // 刷新资产列表
+      fetchAssets();
+    } catch (dryRunError: any) {
+      console.error('自动认证参数验证失败:', dryRunError);
+      ElMessage.error('自动认证参数验证失败: ' + (dryRunError.message || '未知错误'));
+      throw dryRunError;
+    }
   } catch (error: any) {
-    console.error('自动认证失败:', error);
-    ElMessage.error(error.message || '自动认证失败');
+    if (error === 'cancel') {
+      ElMessage.info('已取消自动认证');
+    } else {
+      console.error('自动认证失败:', error);
+      ElMessage.error(error.message || '自动认证失败');
+    }
   } finally {
     isCertifying.value = false;
   }
@@ -1630,6 +1786,273 @@ watch(() => selectedAssetForCert.value, (newVal) => {
 const fetchAssets = async () => {
   await fetchUserAssets(1, true);
 };
+
+// 添加资产认证记录相关数据和方法
+const certSearchQuery = ref('')
+const certStatusFilter = ref('all')
+const certDateRange = ref(null)
+
+// 定义认证记录的接口
+interface CertificationRecord {
+  tokenId: string;
+  certifierAddress: string;
+  certifierName?: string;
+  requestDate: string;
+  updateDate?: string;
+  status: string;
+  txHash?: string;
+  reason?: string;
+}
+
+const certificationRecords = ref<CertificationRecord[]>([])
+const loadingCertRecords = ref(false)
+const certCurrentPage = ref(1)
+const certPageSize = ref(10)
+const totalCertRecords = ref(0)
+const statusMap = {
+  'PENDING': '待认证',
+  'APPROVED': '已通过',
+  'REJECTED': '已拒绝',
+  'COMPLETED': '已完成'
+}
+
+const filteredCertRecords = computed(() => {
+  let records = certificationRecords.value.slice()
+  
+  // 关键字搜索
+  if (certSearchQuery.value) {
+    const query = certSearchQuery.value.toLowerCase()
+    records = records.filter(record => 
+      String(record.tokenId).includes(query) ||
+      (record.certifierAddress && record.certifierAddress.toLowerCase().includes(query)) ||
+      (record.certifierName && record.certifierName.toLowerCase().includes(query))
+    )
+  }
+  
+  // 状态筛选
+  if (certStatusFilter.value !== 'all') {
+    records = records.filter(record => record.status === certStatusFilter.value)
+  }
+  
+  // 日期范围筛选
+  if (certDateRange.value && certDateRange.value[0] && certDateRange.value[1]) {
+    const startDate = new Date(certDateRange.value[0])
+    const endDate = new Date(certDateRange.value[1])
+    endDate.setHours(23, 59, 59, 999)  // 设置为当天结束时间
+    
+    records = records.filter(record => {
+      const recordDate = new Date(record.requestDate)
+      return recordDate >= startDate && recordDate <= endDate
+    })
+  }
+  
+  return records
+})
+
+// 获取认证记录列表
+const fetchCertificationRecords = async () => {
+  loadingCertRecords.value = true
+  try {
+    const token = userStore.profile?.token || ''
+    const params = new URLSearchParams()
+    params.append('page', certCurrentPage.value.toString())
+    params.append('pageSize', certPageSize.value.toString())
+    
+    if (certStatusFilter.value !== 'all') {
+      params.append('status', certStatusFilter.value)
+    }
+    
+    if (certDateRange.value && certDateRange.value[0] && certDateRange.value[1]) {
+      params.append('startDate', certDateRange.value[0])
+      params.append('endDate', certDateRange.value[1])
+    }
+    
+    const response = await axios.get(`/api/certification/records?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    
+    if (response.data.success) {
+      certificationRecords.value = response.data.data.records
+      totalCertRecords.value = response.data.data.totalCount
+    } else {
+      throw new Error(response.data.message || '获取认证记录失败')
+    }
+  } catch (error: any) {
+    console.error('获取认证记录失败:', error)
+    ElMessage.error('获取认证记录失败: ' + (error.message || '未知错误'))
+    certificationRecords.value = []
+    totalCertRecords.value = 0
+  } finally {
+    loadingCertRecords.value = false
+  }
+}
+
+// 重置认证记录筛选
+const resetCertFilters = () => {
+  certSearchQuery.value = ''
+  certStatusFilter.value = 'all'
+  certDateRange.value = null
+  fetchCertificationRecords()
+}
+
+// 处理认证记录搜索
+const handleCertSearch = () => {
+  // 本地前端筛选，不需要重新请求API
+}
+
+// 处理认证记录排序
+const handleCertSort = ({ prop, order }: { prop: string, order: string }) => {
+  // 这里可以实现排序逻辑
+  console.log('排序:', prop, order)
+}
+
+// 处理认证记录分页变化
+const handleCertPageChange = (page: number) => {
+  certCurrentPage.value = page
+  fetchCertificationRecords()
+}
+
+// 查看资产详情（通过ID）
+const viewAssetById = async (tokenId: string | number) => {
+  try {
+    const service = await getDigitalAssetService()
+    const asset = await getAssetByTokenId(service, tokenId)
+    
+    if (asset) {
+      viewAssetDetails(asset)
+    } else {
+      ElMessage.warning(`未找到资产ID为 ${tokenId} 的资产`)
+    }
+  } catch (error: any) {
+    console.error('获取资产详情失败:', error)
+    ElMessage.error('获取资产详情失败: ' + (error.message || '未知错误'))
+  }
+}
+
+// 在区块链浏览器中打开交易详情
+const openExplorer = (txHash: string) => {
+  if (!txHash) return
+  
+  // 假设我们从钱包中获取当前网络信息
+  const networkId = walletStore.chainId?.toString() || '1' // 默认以太坊主网
+  
+  // 根据网络ID选择合适的区块链浏览器
+  let explorerUrl = ''
+  
+  if (networkId === '1') {
+    // 以太坊主网
+    explorerUrl = `https://etherscan.io/tx/${txHash}`
+  } else if (networkId === '5') {
+    // Goerli测试网
+    explorerUrl = `https://goerli.etherscan.io/tx/${txHash}`
+  } else if (networkId === '11155111') {
+    // Sepolia测试网
+    explorerUrl = `https://sepolia.etherscan.io/tx/${txHash}`
+  } else if (networkId === '137') {
+    // Polygon主网
+    explorerUrl = `https://polygonscan.com/tx/${txHash}`
+  } else if (networkId === '80001') {
+    // Polygon Mumbai测试网
+    explorerUrl = `https://mumbai.polygonscan.com/tx/${txHash}`
+  } else {
+    // 其他网络或自定义网络
+    explorerUrl = `https://etherscan.io/tx/${txHash}` // 默认使用以太坊主网
+  }
+  
+  window.open(explorerUrl, '_blank')
+}
+
+// 查看认证详情
+const viewCertificationDetail = (certRecord: CertificationRecord) => {
+  // 如果有资产ID，可以打开资产认证对话框
+  if (certRecord.tokenId) {
+    // 首先获取资产详情
+    viewAssetById(certRecord.tokenId)
+    
+    // 然后打开认证对话框显示其认证状态
+    setTimeout(() => {
+      // 在资产详情加载完成后，打开认证对话框
+      if (assetDetails.value) {
+        selectedAssetForCert.value = assetDetails.value
+        certificationRequestDialogVisible.value = true
+        // 获取认证状态
+        fetchCertificationStatus(Number(certRecord.tokenId))
+      }
+    }, 500)
+  } else {
+    // 如果没有资产ID，显示一个简单的对话框
+    ElMessage.info('认证记录详情：' + certRecord.reason || '无说明')
+  }
+}
+
+// 在组件挂载时获取认证记录
+onMounted(async () => {
+  await fetchUserAssets()
+  await checkRole()
+  fetchAvailableCertifiers()
+  fetchCertificationRecords()
+})
+
+// 确保在切换到认证记录标签页时加载数据
+watch(activeTab, (newTab) => {
+  if (newTab === 'certification') {
+    fetchCertificationRecords()
+  }
+})
+
+
+const getAssetByTokenId = async (service: any, tokenId: string | number) => {
+  try {
+    // 检查服务是否已有此方法
+    if (typeof service.getAssetByTokenId === 'function') {
+      return await service.getAssetByTokenId(tokenId)
+    }
+    
+    // 如果没有，可以获取用户所有资产并筛选
+    const result = await service.getUserAssets(1, 100, true)  // 获取较多资产以提高找到的概率
+    return result.assets.find((asset: any) => parseInt(asset.tokenId) === parseInt(String(tokenId)))
+  } catch (error: any) {
+    console.error('获取资产详情失败:', error)
+    throw error
+  }
+}
+
+// // 提交认证申请
+// const submitCertificationRequest = async () => {
+//   if (!selectedAssetForCert.value) return;
+  
+//   try {
+//     isSubmitting.value = true;
+//     const service = getDigitalAssetService();
+//     if (service) {
+//       const response = await service.submitCertificationRequest({
+//         tokenId: Number(certifyRequest.value.tokenId),
+//         reason: certifyRequest.value.reason,
+//         approvers: certifyRequest.value.approvers
+//       });
+//       if (response && response.success) {
+//         ElMessage.success('认证申请已提交');
+//         certificationRequestDialogVisible.value = false;
+        
+//         // 刷新认证状态
+//         await fetchCertificationStatus(Number(selectedAssetForCert.value.tokenId));
+        
+//         if (currentTab.value === 'certification') {
+//           // 如果当前是认证记录标签，就刷新记录
+//           fetchCertificationRecords(1, true);
+//         } else {
+//           // 如果在资产管理标签，刷新资产列表
+//           fetchUserAssets(1, true);
+//         }
+//       }
+//     }
+//   } catch (error: any) {
+//     ElMessage.error(`提交认证申请失败: ${error.message || '未知错误'}`);
+//   } finally {
+//     isSubmitting.value = false;
+//   }
+// };
+
 </script>
 
 <style lang="scss" scoped>
@@ -2969,5 +3392,92 @@ tr:hover .el-button--danger {
   border-radius: 8px;
   margin-bottom: 20px;
   border: 1px solid rgba(100, 255, 218, 0.2);
+}
+
+/* 认证记录页面样式 */
+.certification-section {
+  margin-top: 1rem;
+  position: relative;
+  z-index: 1;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: center;
+}
+
+.certifier-info-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.link-text {
+  color: #64ffda;
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.link-text:hover {
+  text-decoration: underline;
+}
+
+.txhash-text {
+  color: #64ffda;
+  cursor: pointer;
+  font-family: monospace;
+}
+
+.txhash-text:hover {
+  text-decoration: underline;
+}
+
+.status-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  min-width: 70px;
+}
+
+.status-tag.pending {
+  background: rgba(230, 162, 60, 0.2);
+  color: #e6a23c;
+  border: 1px solid rgba(230, 162, 60, 0.3);
+}
+
+.status-tag.approved {
+  background: rgba(103, 194, 58, 0.2);
+  color: #67c23a;
+  border: 1px solid rgba(103, 194, 58, 0.3);
+}
+
+.status-tag.rejected {
+  background: rgba(245, 108, 108, 0.2);
+  color: #f56c6c;
+  border: 1px solid rgba(245, 108, 108, 0.3);
+}
+
+.status-tag.completed {
+  background: rgba(100, 255, 218, 0.2);
+  color: #64ffda;
+  border: 1px solid rgba(100, 255, 218, 0.3);
+}
+
+@media (max-width: 768px) {
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-group {
+    margin-bottom: 0.5rem;
+  }
 }
 </style>

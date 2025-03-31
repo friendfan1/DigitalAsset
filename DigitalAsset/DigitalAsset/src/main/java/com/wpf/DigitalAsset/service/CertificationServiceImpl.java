@@ -153,7 +153,10 @@ public class CertificationServiceImpl implements CertificationService {
         certificationSignature.setRequestId(assetCertificationRequest.getId());
         certificationSignature.setCertifierAddress(requestDTO.getCertifierAddress());
         certificationSignature.setMessageToSign(requestDTO.getMessageToSign());
+        certificationSignature.setMessageHash(requestDTO.getMessageHash());
+        certificationSignature.setReasonHash(requestDTO.getReasonHash());
         certificationSignature.setSignature(requestDTO.getSignature());
+        certificationSignature.setComment(requestDTO.getReason());
         certificationSignature.setTimeStamp(requestDTO.getTimestamp());
         certificationSignatureRepository.save(certificationSignature);
     }
@@ -197,10 +200,29 @@ public class CertificationServiceImpl implements CertificationService {
                         .signature(signature.getSignature())
                         .certifierAddress(signature.getCertifierAddress())
                         .timestamp(signature.getTimeStamp())
+                        .messageToSign(signature.getMessageToSign())
+                        .messageHash(signature.getMessageHash())
+                        .reasonHash(signature.getReasonHash())
+                        .comment(requestRepository.findByTokenIdAndCertifierAddress(tokenId, signature.getCertifierAddress())
+                                .getReason())
                         .build())
                 .collect(Collectors.toList());
     }
-
+    @Override
+    public Void updateCertification(UpdateDatabaseDTO updateDatabaseDTO) {
+        List<AssetCertificationRequest> assetCertificationRequestList = requestRepository
+                .findByTokenId(updateDatabaseDTO.getTokenId())
+                .stream()
+                .peek(request -> {
+                    request.setStatus(AssetCertificationRequest.RequestStatus.COMPLETED);
+                    request.setUpdatedAt(LocalDateTime.now());
+                })
+                .toList();
+        requestRepository.saveAll(assetCertificationRequestList);
+        CertificationRecord certificationRecord = new CertificationRecord(updateDatabaseDTO);
+        recordRepository.save(certificationRecord);
+        return null;
+    }
 
     private CertificationRequestDTO convertToDTO(AssetCertificationRequest request) {
         CertificationRequestDTO dto = new CertificationRequestDTO();

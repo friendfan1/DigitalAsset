@@ -117,6 +117,25 @@
           <p><strong>文件类型：</strong> {{ selectedAssetForCert.metadata.fileType }}</p>
         </div>
 
+        <!-- 添加认证申请信息 -->
+        <div v-if="selectedAssetForCert.reason" class="certification-request-info">
+          <h3>认证申请信息</h3>
+          <div class="request-details">
+            <div class="request-item">
+              <div class="request-label">申请原因：</div>
+              <div class="request-content">{{ selectedAssetForCert.reason }}</div>
+            </div>
+            <div v-if="selectedAssetForCert.requester" class="request-item">
+              <div class="request-label">申请者：</div>
+              <div class="request-content">{{ formatAddress(selectedAssetForCert.requester) }}</div>
+            </div>
+            <div v-if="selectedAssetForCert.requestTime" class="request-item">
+              <div class="request-label">申请时间：</div>
+              <div class="request-content">{{ formatDate(selectedAssetForCert.requestTime) }}</div>
+            </div>
+          </div>
+        </div>
+
         <!-- 添加认证状态展示 -->
         <div class="certification-status">
           <h3>认证状态</h3>
@@ -160,12 +179,12 @@
               <el-button 
                 type="success" 
                 size="small" 
-                @click="certificationForm.comment = '经过审核，我认为该资产内容真实有效，符合认证标准，同意认证。'"
+                @click="certificationForm.comment = `我，${userStore.profile?.username || '认证者'}，于${formatDate(new Date())}经过审核认为该资产内容真实有效，符合认证标准，同意认证。`"
               >同意认证</el-button>
               <el-button 
                 type="danger" 
                 size="small" 
-                @click="certificationForm.comment = '经审核发现该资产内容存在问题，不符合认证标准，拒绝认证。'"
+                @click="certificationForm.comment = `我，${userStore.profile?.username || '认证者'}，于${formatDate(new Date())}经审核发现该资产内容存在问题，不符合认证标准，拒绝认证。`"
               >拒绝认证</el-button>
             </div>
           </el-form-item>
@@ -222,12 +241,12 @@
               <el-button 
                 type="success" 
                 size="small" 
-                @click="batchCertificationForm.comment = '批量审核通过，这些资产内容真实有效，符合认证标准，同意认证。'"
+                @click="batchCertificationForm.comment = `我，${userStore.profile?.username || '认证者'}，于${formatDate(new Date())}批量审核通过，这些资产内容真实有效，符合认证标准，同意认证。`"
               >批量同意</el-button>
               <el-button 
                 type="danger" 
                 size="small" 
-                @click="batchCertificationForm.comment = '经审核发现这些资产内容存在问题，不符合认证标准，拒绝认证。'"
+                @click="batchCertificationForm.comment = `我，${userStore.profile?.username || '认证者'}，于${formatDate(new Date())}经审核发现这些资产内容存在问题，不符合认证标准，拒绝认证。`"
               >拒绝认证</el-button>
             </div>
           </el-form-item>
@@ -262,6 +281,7 @@ import { hasBlockchainRole } from '@/utils/permission';
 import { BrowserProvider, Signature } from 'ethers';
 import AssetDetailDialog from '@/components/AssetDetailDialog.vue';
 import axios from 'axios';
+import { ethers } from 'ethers';
 
 // 用户信息
 const userStore = useUserStore();
@@ -308,6 +328,9 @@ interface Asset {
   version: string;
   owner: string;
   certificationHistory: CertificationRecord[];
+  reason?: string;
+  requester?: string;
+  requestTime?: Date;
 }
 
 // 使用这些类型初始化变量
@@ -361,7 +384,7 @@ const isLoadingStatus = ref(false);
 
 // 获取认证状态
 const fetchCertificationStatus = async (tokenId: number) => {
-  if (!tokenId) return;
+  if (tokenId === null) return;
   
   isLoadingStatus.value = true;
   try {
@@ -449,8 +472,24 @@ const fetchAssets = async () => {
       pageSize.value
     );
     
+    // 处理每个资产，提取认证请求信息到顶层属性
+    const processedAssets = assetsData.map(asset => {
+      // 如果有认证请求信息，提取到资产对象的顶层属性
+      if (asset.certificationRequest) {
+        return {
+          ...asset,
+          reason: asset.certificationRequest.reason,
+          requester: asset.certificationRequest.requesterAddress,
+          requestTime: new Date(asset.certificationRequest.requestTime),
+          requestId: asset.certificationRequest.id,
+          requestStatus: asset.certificationRequest.status
+        };
+      }
+      return asset;
+    });
+    
     totalAssets.value = totalCount;
-    assets.value = assetsData;
+    assets.value = processedAssets;
     
   } catch (error) {
     console.error('获取待认证资产列表失败:', error);
@@ -633,6 +672,7 @@ const generatePreviewUrl = async (asset: Asset) => {
 };
 
 const showCertificationDialog = (asset: Asset) => {
+
   selectedAssetForCert.value = asset;
   certificationForm.value = {
     comment: ''
@@ -670,27 +710,64 @@ const certifyAsset = async () => {
     const tokenId = Number(selectedAssetForCert.value!.tokenId);
     const reason = certificationForm.value.comment;
     
-    // 准备要签名的消息
-    const messageToSign = `我同意认证资产 ID: ${tokenId}\n原因: ${reason}\n时间戳: ${Date.now()}`;
+    // 直接哈希化评论内容，避免中文字符编码问题
+    const reasonHash = ethers.keccak256(ethers.toUtf8Bytes(reason));
+    
+    // 准备要签名的消息 - 匹配智能合约中的验证逻辑
+    // 合约使用：keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", keccak256(abi.encodePacked(tokenId, comment))))
+    const innerMessageData = ethers.solidityPacked(
+      ['uint256', 'bytes32'],
+      [tokenId, reasonHash]
+    ); 
+    const innerMessageHash = ethers.keccak256(innerMessageData);
     
     // 获取钱包提供商
     const provider = new BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
     
-    // 使用钱包签名
-    const signature = await signer.signMessage(messageToSign);
-    console.log("signature", signature)
-    console.log("messageToSign", messageToSign)
-    console.log("userWalletAddress", userWalletAddress.value)
-    // 提交到后端
+    // 关键修改: 使用 signMessage 对 innerMessageHash 的字节表示进行签名
+    // ethers.js 的 signMessage 会自动添加前缀 "\x19Ethereum Signed Message:\n" + 长度 + 消息
+    // 这样签名的结果将符合合约中的验证逻辑
+    const signature = await signer.signMessage(ethers.getBytes(innerMessageHash));
+    
+    console.log("签名参数:", {
+      tokenId,
+      reason,
+      reasonHash,
+      innerMessageData,
+      innerMessageHash,
+      signature,
+      userWalletAddress: userWalletAddress.value
+    });
+    
+    // 验证签名 - 应该使用相同的消息构造方式
+    try {
+      const recoveredAddress = ethers.verifyMessage(
+        ethers.getBytes(innerMessageHash),
+        signature
+      );
+      console.log("签名验证:", {
+        recoveredAddress,
+        originalAddress: userWalletAddress.value,
+        matches: recoveredAddress.toLowerCase() === userWalletAddress.value.toLowerCase()
+      });
+    } catch (verifyError) {
+      console.error("签名验证失败:", verifyError);
+    }
+
+    const timestamp = new Date();
+    
+    // 存储到后端: 保存 tokenId, reason, 签名者地址, 签名, 原始消息 (便于后续验证)
     const response = await axios.post('/api/certification/sign', {
-      tokenId: tokenId,
-      reason: reason,
+      tokenId,
+      reason,
+      reasonHash, // 添加评论的哈希值
       certifierAddress: userWalletAddress.value,
-      signature: signature,
-      messageToSign: messageToSign,
-      timestamp: Date.now()
-    }, {
+      signature,
+      messageToSign: innerMessageData, // 存储原始消息数据
+      messageHash: innerMessageHash,   // 额外存储消息哈希，便于验证
+      timestamp
+    } as any, {
       headers: {
         'Authorization': `Bearer ${userStore.profile?.token || ''}`
       }
@@ -728,8 +805,23 @@ const certifyBatchAssets = async () => {
   }
   
   isBatchCertifying.value = true;
+  
+  // 确认对话框
   try {
+    await ElMessageBox.confirm(
+      `您确定要批量认证这${selectedUncertifiedAssets.value.length}个资产吗？此操作将调用智能合约，需要支付gas费用。`,
+      '批量认证确认',
+      {
+        confirmButtonText: '确认认证',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+    
     const digitalAssetService = await getDigitalAssetService();
+    
+    let successCount = 0;
+    let failedCount = 0;
     
     // 循环处理每个资产
     for (const asset of selectedUncertifiedAssets.value) {
@@ -740,20 +832,39 @@ const certifyBatchAssets = async () => {
           approvers: batchCertificationForm.value.additionalCertifiers
         };
         
-        await digitalAssetService.certifyAsset(userStore.profile?.token || '', request);
+        try {
+          await digitalAssetService.certifyAsset(userStore.profile?.token || '', request);
+          successCount++;
+          ElMessage.success(`资产 ${asset.tokenId} 认证成功`);
+        } catch (dryRunError: any) {
+          console.error(`资产 ${asset.tokenId} 参数验证失败:`, dryRunError);
+          ElMessage.error(`资产 ${asset.tokenId} 参数验证失败: ${dryRunError.message || '未知错误'}`);
+          failedCount++;
+        }
       } catch (error: any) {
         console.error(`认证资产 ${asset.tokenId} 失败:`, error);
+        ElMessage.error(`资产 ${asset.tokenId} 认证失败: ${error.message || '未知错误'}`);
+        failedCount++;
       }
     }
     
-    ElMessage.success(`批量认证完成，成功认证 ${selectedUncertifiedAssets.value.length} 个资产`);
+    if (successCount > 0) {
+      ElMessage.success(`批量认证已完成: ${successCount} 个成功，${failedCount} 个失败`);
+    } else {
+      ElMessage.error(`批量认证全部失败: ${failedCount} 个资产认证失败`);
+    }
+    
     batchCertificationDialogVisible.value = false;
     
     await fetchAssets();
     
   } catch (error: any) {
-    console.error('批量认证失败:', error);
-    ElMessage.error('批量认证失败: ' + (error.message || '未知错误'));
+    if (error === 'cancel') {
+      ElMessage.info('已取消批量认证');
+    } else {
+      console.error('批量认证失败:', error);
+      ElMessage.error('批量认证失败: ' + (error.message || '未知错误'));
+    }
   } finally {
     isBatchCertifying.value = false;
   }
@@ -1097,5 +1208,47 @@ const closeAssetDetails = () => {
 
 .quick-comments-label {
   font-weight: 500;
+}
+
+.certification-request-info {
+  margin-bottom: 20px;
+  background-color: #f9fafc;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.certification-request-info h3 {
+  font-size: 16px;
+  color: #0a192f;
+  margin-bottom: 12px;
+}
+
+.request-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.request-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.request-label {
+  font-weight: 500;
+  color: #333;
+  min-width: 80px;
+}
+
+.request-content {
+  color: #606266;
+  flex: 1;
+  line-height: 1.5;
+  padding: 4px 8px;
+  background-color: #f2f6fc;
+  border-radius: 4px;
+  word-break: break-word;
 }
 </style> 

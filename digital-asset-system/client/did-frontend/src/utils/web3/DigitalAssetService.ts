@@ -26,7 +26,7 @@ type AssetRegistrationParams = {
 };
 
 export type CertificationRequest = {
-  tokenId: string;
+  tokenId: string | number;
   reason: string;
   approvers: string[];
 };
@@ -104,7 +104,23 @@ interface IPFSCacheEntry {
 interface CertificationSignature {
   certifierAddress: string;
   signature: string;
-  timestamp: number;
+  timestamp: string | number;
+  messageToSign?: string; // 原始消息数据
+  messageHash?: string;   // 消息哈希
+  comment?: string; // 评论字段
+  reasonHash?: string; // 评论的哈希值
+}
+
+// 添加认证者评论接口，与合约中的结构体对应
+interface CertifierComment {
+  certifier: string;
+  comment: string;
+}
+
+// 添加认证者哈希评论接口，与合约中的新结构体对应
+interface CertifierHashComment {
+  certifier: string;
+  commentHash: string; // 字节32哈希值的十六进制表示
 }
 
 export class DigitalAssetService extends BaseWeb3Service {
@@ -1094,40 +1110,104 @@ export class DigitalAssetService extends BaseWeb3Service {
         reason: request.reason,
         approvers: request.approvers
       });
-
+  
       // 获取认证签名
-      const signatures = await this.getCertificationSignatures(token, request.tokenId);
+      const signatures = await this.getCertificationSignatures(token, request.tokenId.toString());
       console.log('获取到的认证签名:', signatures);
-
+  
       if (!Array.isArray(signatures) || signatures.length === 0) {
         throw new Error('未获取到有效的认证签名');
       }
-
+  
       // 检查所有认证者是否都已签名
       const allApproversSigned = request.approvers.every(approver => 
         signatures.some(sig => sig.certifierAddress.toLowerCase() === approver.toLowerCase())
       );
-
+  
       if (!allApproversSigned) {
         throw new Error('部分认证者尚未完成签名');
       }
-
-      // 准备签名数组
-      const signatureArray = signatures.map(sig => sig.signature);
-      console.log('准备调用合约，参数:', {
-        tokenId: request.tokenId,
-        reason: request.reason,
-        signatureCount: signatureArray.length
-      });
-
-      // 调用合约
-      const tx = await this.contract.certifyAsset(
-        request.tokenId,
-        request.reason,
-        signatureArray,
-        { gasLimit: 500000 } // 添加固定的gas限制
+  
+      // 准备认证者评论数组和有效签名数组
+      const validSignatures: string[] = [];
+      const certifierHashComments: CertifierHashComment[] = [];
+      const validSigners = new Set<string>();
+  
+      // 验证每个签名并构建评论数组
+      for (const sig of signatures) {
+        debugger;
+        try {
+          console.log(`验证签名者 ${sig.certifierAddress}...`);
+          
+          // 获取评论哈希，如果reasonHash不存在，则使用comment计算哈希
+          const commentHash = sig.reasonHash || (sig.comment ? ethers.keccak256(ethers.toUtf8Bytes(sig.comment)) : "");
+          
+          if (!commentHash) {
+            console.error('无法获取评论哈希，跳过此签名');
+            continue;
+          }
+          
+          // 使用messageHash进行验证（如果可用），否则从messageToSign重新计算哈希
+          let messageHash = sig.messageHash;
+          if (!messageHash && sig.messageToSign) {
+            messageHash = ethers.keccak256(sig.messageToSign);
+          }
+          
+          if (!messageHash) {
+            console.error('无法获取或计算消息哈希，跳过此签名');
+            continue;
+          }
+          
+          // 验证签名 - 使用与前端一致的方法
+          let recoveredAddress;
+          try {
+            recoveredAddress = ethers.verifyMessage(
+              ethers.getBytes(messageHash),
+              sig.signature
+            );
+            
+            if (recoveredAddress.toLowerCase() === sig.certifierAddress.toLowerCase() && 
+                !validSigners.has(recoveredAddress.toLowerCase())) {
+              console.log(`签名验证成功: ${recoveredAddress}`);
+              validSignatures.push(sig.signature);
+              certifierHashComments.push({
+                certifier: sig.certifierAddress,
+                commentHash: commentHash // 使用哈希化的评论
+              });
+              validSigners.add(recoveredAddress.toLowerCase());
+              console.log(`添加有效签名和评论哈希: ${recoveredAddress}`);
+            } else if (recoveredAddress.toLowerCase() !== sig.certifierAddress.toLowerCase()) {
+              console.warn(`签名验证失败: 预期 ${sig.certifierAddress}, 实际恢复 ${recoveredAddress}`);
+            } else {
+              console.warn(`忽略重复的签名者: ${recoveredAddress}`);
+            }
+          } catch (err) {
+            console.log('签名验证失败:', err);
+          }
+        } catch (verifyError) {
+          console.error(`无法验证签名: ${sig.signature.substring(0, 20)}...`, verifyError);
+        }
+      }
+      
+      console.log('有效签名数量:', validSignatures.length);
+      console.log('认证者评论哈希:', certifierHashComments);
+      
+      if (validSignatures.length < 2) {
+        throw new Error(`需要至少2个有效签名才能进行认证，当前只有 ${validSignatures.length} 个`);
+      }
+  
+      // 调用合约的认证方法 - 使用哈希评论的新方法
+      const tx = await this.contract.certifyAssetWithHashComments(
+        Number(request.tokenId),
+        certifierHashComments,
+        validSignatures,
+        { 
+          gasLimit: 3000000, // 增加gas限制
+          maxFeePerGas: ethers.parseUnits("150", "gwei"),
+          maxPriorityFeePerGas: ethers.parseUnits("50", "gwei")
+        }
       );
-
+  
       console.log('交易已发送:', tx.hash);
       
       // 等待交易确认
@@ -1136,26 +1216,20 @@ export class DigitalAssetService extends BaseWeb3Service {
         throw new Error('交易回执为空');
       }
       console.log('交易已确认:', receipt.hash);
-
+  
       // 链上认证成功后，调用后端接口更新数据库状态
       try {
         console.log('开始更新后端数据库状态...');
         const response = await axios.post('/api/certification/complete', {
           tokenId: request.tokenId,
           txHash: receipt.hash,
-          reason: request.reason,
-          certifierAddress: await this.getCurrentAddress(),
-          signatures: signatures.map(sig => ({
-            certifierAddress: sig.certifierAddress,
-            signature: sig.signature,
-            timestamp: sig.timestamp
-          }))
+          certifierAddress: await this.getCurrentAddress()
         }, {
           headers: {
             Authorization: `Bearer ${token}`
           }
         });
-
+  
         if (!response.data.success) {
           console.warn('后端状态更新失败:', response.data.message);
         } else {
@@ -1164,7 +1238,7 @@ export class DigitalAssetService extends BaseWeb3Service {
       } catch (backendError) {
         console.error('调用后端接口失败:', backendError);
       }
-
+  
       return this.monitorTransaction(tx, 'AssetCertified');
     } catch (error) {
       console.error('资产认证失败:', error);
@@ -1437,8 +1511,8 @@ export class DigitalAssetService extends BaseWeb3Service {
             txHash: receipt.hash,
             message: "资产已成功删除"
           };
-        }
-      } catch (err) {
+            }
+          } catch (err) {
         // 所有方法都失败了
         const error = err as Error;
         console.log("删除资产失败，所有方法都尝试过:", error);
@@ -1636,12 +1710,10 @@ export class DigitalAssetService extends BaseWeb3Service {
     }
   }
 
-  // 添加一个公共方法获取当前地址
   public async getCurrentAddress(): Promise<string> {
     return await this.signer.getAddress();
   }
 
-  // 添加一个公共方法获取合约地址
   public getContractAddress(): string {
     return this.contract.target.toString();
   }
@@ -2535,173 +2607,116 @@ export class DigitalAssetService extends BaseWeb3Service {
     }
   }
 
-  /**
-   * 验证用户是否拥有资产的所有权
-   * @param tokenId 资产ID
-   * @returns 包含验证结果和资产信息的对象
-   */
-  async verifyAssetOwnership(tokenId: number): Promise<{
-    isOwner: boolean;
-    hasPendingCertification: boolean;
-    asset: any;
-  }> {
-    try {
-      // 1. 检查资产是否存在
-      // 使用 ownerOf() 方法来间接检查是否存在（如果不存在会抛出错误）
-      let owner;
-      try {
-        owner = await this.contract.ownerOf(tokenId);
-      } catch (error) {
-        throw new Error(`资产 ID ${tokenId} 不存在`);
-      }
+  // /**
+  //  * 验证用户是否拥有资产的所有权
+  //  * @param tokenId 资产ID
+  //  * @returns 包含验证结果和资产信息的对象
+  //  */
+  // async verifyAssetOwnership(tokenId: number): Promise<{
+  //   isOwner: boolean;
+  //   hasPendingCertification: boolean;
+  //   asset: any;
+  // }> {
+  //   try {
+  //     // 1. 检查资产是否存在
+  //     // 使用 ownerOf() 方法来间接检查是否存在（如果不存在会抛出错误）
+  //     let owner;
+  //     try {
+  //       owner = await this.contract.ownerOf(tokenId);
+  //     } catch (error) {
+  //       throw new Error(`资产 ID ${tokenId} 不存在`);
+  //     }
       
-      // 3. 获取当前连接的钱包地址
-      const currentAddress = await this.getCurrentAddress();
+  //     // 3. 获取当前连接的钱包地址
+  //     const currentAddress = await this.getCurrentAddress();
       
-      // 4. 确定用户是否是所有者
-      const isOwner = owner.toLowerCase() === currentAddress.toLowerCase();
+  //     // 4. 确定用户是否是所有者
+  //     const isOwner = owner.toLowerCase() === currentAddress.toLowerCase();
       
-      // 5. 获取资产元数据
-      const metadata = await this.getAssetMetadata(tokenId);
+  //     // 5. 获取资产元数据
+  //     const metadata = await this.getAssetMetadata(tokenId);
       
-      // 6. 检查是否已有待认证请求
-      // 获取认证申请状态
-      let hasPendingCertification = false;
-      try {
-        // 假设合约有一个方法获取认证申请的状态
-        const pendingCertifications = await this.getPendingCertifications(tokenId);
-        hasPendingCertification = pendingCertifications.length > 0;
-      } catch (error) {
-        console.warn(`获取资产 ${tokenId} 的认证申请状态失败:`, error);
-      }
+  //     // 6. 检查是否已有待认证请求
+  //     // 获取认证申请状态
+  //     let hasPendingCertification = false;
+  //     try {
+  //       // 假设合约有一个方法获取认证申请的状态
+  //       const pendingCertifications = await this.getPendingCertifications(tokenId);
+  //       hasPendingCertification = pendingCertifications.length > 0;
+  //     } catch (error) {
+  //       console.warn(`获取资产 ${tokenId} 的认证申请状态失败:`, error);
+  //     }
       
-      // 7. 检查是否已认证
-      // 假设合约方法或者我们已经有一个现有的方法检查认证状态
-      const isCertified = await this.isAssetCertified(tokenId);
+  //     // 7. 检查是否已认证
+  //     // 假设合约方法或者我们已经有一个现有的方法检查认证状态
+  //     const isCertified = await this.isAssetCertified(tokenId);
       
-      // 8. 构建并返回结果对象
-      const asset = {
-        tokenId,
-        owner,
-        metadata,
-        isCertified,
-        // 如果已认证，获取认证相关信息
-        ...(isCertified ? await this.getCertificationDetails(tokenId) : {})
-      };
+  //     // 8. 构建并返回结果对象
+  //     const asset = {
+  //       tokenId,
+  //       owner,
+  //       metadata,
+  //       isCertified,
+  //       // 如果已认证，获取认证相关信息
+  //       ...(isCertified ? await this.getCertificationDetails(tokenId) : {})
+  //     };
       
-      return {
-        isOwner,
-        hasPendingCertification,
-        asset
-      };
-    } catch (error) {
-      console.error("验证资产所有权失败:", error);
-      throw error;
-    }
-  }
+  //     return {
+  //       isOwner,
+  //       hasPendingCertification,
+  //       asset
+  //     };
+  //   } catch (error) {
+  //     console.error("验证资产所有权失败:", error);
+  //     throw error;
+  //   }
+  // }
 
-  /**
-   * 获取待认证的申请
-   * @param tokenId 资产ID
-   * @returns 待认证申请列表
-   */
-  private async getPendingCertifications(tokenId: number): Promise<any[]> {
-    try {
-      // 这里实现从API或区块链获取待认证申请
-      const response = await axios.get(`/api/certification/pending/${tokenId}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`
-        }
-      });
+  // /**
+  //  * 获取待认证的申请
+  //  * @param tokenId 资产ID
+  //  * @returns 待认证申请列表
+  //  */
+  // private async getPendingCertifications(tokenId: number): Promise<any[]> {
+  //   try {
+  //     const response = await axios.get(`/api/certification/pending/${tokenId}`, {
+  //       headers: {
+  //         Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+  //       }
+  //     });
       
-      if (response.data.success) {
-        return response.data.data || [];
-      }
+  //     if (response.data.success) {
+  //       return response.data.data || [];
+  //     }
       
-      return [];
-    } catch (error) {
-      console.error(`获取资产 ${tokenId} 的待认证申请失败:`, error);
-      return [];
-    }
-  }
+  //     return [];
+  //   } catch (error) {
+  //     console.error(`获取资产 ${tokenId} 的待认证申请失败:`, error);
+  //     return [];
+  //   }
+  // }
 
-  /**
-   * 检查资产是否已认证
-   * @param tokenId 资产ID
-   * @returns 是否已认证
-   */
-  private async isAssetCertified(tokenId: number): Promise<boolean> {
-    try {
-      // 检查是否有认证记录
-      const metadata = await this.getAssetMetadata(tokenId);
-      // 假设元数据中有认证状态信息
-      return Boolean(metadata && metadata[5]); // 确保返回布尔值
-    } catch (error) {
-      console.error(`检查资产 ${tokenId} 认证状态失败:`, error);
-      return false;
-    }
-  }
-
-  /**
-   * 获取资产认证详情
-   * @param tokenId 资产ID
-   * @returns 认证详情
-   */
-  private async getCertificationDetails(tokenId: number): Promise<{
-    certificationDate: Date;
-    certificationTxHash: string;
-    certifiers: { address: string; name?: string }[];
-  }> {
-    try {
-      // 1. 获取认证事件
-      const filter = this.contract.filters.AssetCertified(tokenId);
-      const events = await this.contract.queryFilter(filter);
-      
-      if (events.length === 0) {
-        throw new Error(`未找到资产 ${tokenId} 的认证事件`);
-      }
-      
-      // 2. 获取最新的认证事件
-      const latestEvent = events[events.length - 1];
-      
-      // 3. 从事件中提取相关信息
-      const certificationTxHash = latestEvent.transactionHash;
-      const block = await latestEvent.getBlock();
-      const certificationDate = new Date(block.timestamp * 1000); // 转换为毫秒
-      
-      // 4. 获取认证者列表
-      // 从API获取认证者信息
-      const certifiersResponse = await axios.get(`/api/certification/certifiers/${tokenId}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`
-        }
-      });
-      
-      let certifiers: { address: string; name?: string }[] = [];
-      
-      if (certifiersResponse.data.success) {
-        certifiers = certifiersResponse.data.data || [];
-      }
-      
-      return {
-        certificationDate,
-        certificationTxHash,
-        certifiers
-      };
-    } catch (error) {
-      console.error("获取认证详情失败:", error);
-      return {
-        certificationDate: new Date(),
-        certificationTxHash: "",
-        certifiers: []
-      };
-    }
-  }
+  // /**
+  //  * 检查资产是否已认证
+  //  * @param tokenId 资产ID
+  //  * @returns 是否已认证
+  //  */
+  // private async isAssetCertified(tokenId: number): Promise<boolean> {
+  //   try {
+  //     // 检查是否有认证记录
+  //     const metadata = await this.getAssetMetadata(tokenId);
+  //     // 假设元数据中有认证状态信息
+  //     return Boolean(metadata && metadata[5]); // 确保返回布尔值
+  //   } catch (error) {
+  //     console.error(`检查资产 ${tokenId} 认证状态失败:`, error);
+  //     return false;
+  //   }
+  // }
 
   // 获取认证签名
   async getCertificationSignatures(token: string, tokenId: string): Promise<CertificationSignature[]> {
     try {
-      console.log("token",localStorage.getItem('token'));
+      console.log("token", token);
       const response = await axios.get(`/api/certification/signatures/${tokenId}`,{
         headers: {
           Authorization: `Bearer ${token}`
@@ -2709,7 +2724,13 @@ export class DigitalAssetService extends BaseWeb3Service {
       });
       
       if (response.data.success) {
-        return response.data.data || []; // 确保返回数组
+        // 获取原始签名数据
+        const signatures = response.data.data || [];
+        
+        // 记录原始数据
+        console.log('API返回的原始签名数据:', signatures);
+        
+        return signatures;
       } else {
         throw new Error(response.data.message || '获取认证签名失败');
       }
@@ -2718,28 +2739,6 @@ export class DigitalAssetService extends BaseWeb3Service {
       throw error;
     }
   }
-
-  // async fetchCertificationSignatures(tokenId: number): Promise<CertificationSignature[]> {
-  //   try {
-  //     const token = localStorage.getItem('token');
-  //     if (!token) {
-  //       throw new Error('未找到认证令牌');
-  //     }
-
-  //     const response = await axios.get(`/api/certification/signatures/${tokenId}`, {
-  //       headers: { Authorization: `Bearer ${token}` }
-  //     });
-
-  //     if (response.data.success) {
-  //       return response.data.data || []; // 确保返回数组
-  //     } else {
-  //       throw new Error(response.data.message || '获取认证签名失败');
-  //     }
-  //   } catch (error: any) {
-  //     console.error('获取认证签名失败:', error);
-  //     throw new Error(error.message || '获取认证签名失败');
-  //   }
-  // }
 }
 
 // 辅助函数用于合并Uint8Array数组

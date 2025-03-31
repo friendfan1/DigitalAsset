@@ -17063,12 +17063,12 @@
         }
       },
       "links": {},
-      "address": "0xe631132f354C88b5ccEc8E075d04d057fEB6CD44",
-      "transactionHash": "0x59564911956e80866ced281c349474fb1a6706ae0eca7a50e5e5d7a69fd91de7"
+      "address": "0x75CB79C361BEB94CD50DEc2Ff8Be1eB8D6a322A0",
+      "transactionHash": "0x52bc0e0dfe4635b3dee60fe7b24059e23bc405537de53386f982e005e4e101f0"
     }
   },
   "schemaVersion": "3.4.16",
-  "updatedAt": "2025-03-22T09:35:43.329Z",
+  "updatedAt": "2025-03-31T06:08:21.300Z",
   "networkType": "ethereum",
   "devdoc": {
     "details": "去中心化身份(DID)注册合约",

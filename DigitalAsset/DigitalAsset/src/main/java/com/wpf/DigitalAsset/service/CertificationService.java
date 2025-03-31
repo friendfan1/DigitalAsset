@@ -72,4 +72,6 @@ public interface CertificationService {
     List<CertificationStatusDTO> getCertificationStatus(Long tokenId);
 
     List<CertificationSignatureDTO> getCertificationSignature(Long tokenId);
+
+    Void updateCertification(UpdateDatabaseDTO updateDatabaseDTO);
 }

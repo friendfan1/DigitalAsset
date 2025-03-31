@@ -24,6 +24,26 @@ import type {
 } from "./common";
 
 export declare namespace DigitalAsset {
+  export type CertifierCommentStruct = {
+    certifier: AddressLike;
+    comment: string;
+  };
+
+  export type CertifierCommentStructOutput = [
+    certifier: string,
+    comment: string
+  ] & { certifier: string; comment: string };
+
+  export type CertifierHashCommentStruct = {
+    certifier: AddressLike;
+    commentHash: BytesLike;
+  };
+
+  export type CertifierHashCommentStructOutput = [
+    certifier: string,
+    commentHash: string
+  ] & { certifier: string; commentHash: string };
+
   export type AssetMetadataStruct = {
     cid: string;
     contentHash: BytesLike;
@@ -83,7 +103,9 @@ export interface DigitalAssetInterface extends Interface {
       | "tokenURI"
       | "transferFrom"
       | "registerAsset"
+      | "certifyAssetWithMultipleComments"
       | "certifyAsset"
+      | "certifyAssetWithHashComments"
       | "updateMetadata"
       | "getAssetMetadata"
       | "getCertificationHistory"
@@ -152,8 +174,20 @@ export interface DigitalAssetInterface extends Interface {
     values: [AddressLike, string, BytesLike, string, BytesLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "certifyAssetWithMultipleComments",
+    values: [BigNumberish, DigitalAsset.CertifierCommentStruct[], BytesLike[]]
+  ): string;
+  encodeFunctionData(
     functionFragment: "certifyAsset",
     values: [BigNumberish, string, BytesLike[]]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "certifyAssetWithHashComments",
+    values: [
+      BigNumberish,
+      DigitalAsset.CertifierHashCommentStruct[],
+      BytesLike[]
+    ]
   ): string;
   encodeFunctionData(
     functionFragment: "updateMetadata",
@@ -217,7 +251,15 @@ export interface DigitalAssetInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "certifyAssetWithMultipleComments",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "certifyAsset",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "certifyAssetWithHashComments",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -557,14 +599,34 @@ export interface DigitalAsset extends BaseContract {
     "nonpayable"
   >;
 
+  certifyAssetWithMultipleComments: TypedContractMethod<
+    [
+      tokenId: BigNumberish,
+      certifierComments: DigitalAsset.CertifierCommentStruct[],
+      signatures: BytesLike[]
+    ],
+    [void],
+    "nonpayable"
+  >;
+
   /**
-   * 认证资产
+   * 认证资产 - 原始方法，保留向后兼容性
    * @param comment 认证评论
    * @param signatures 认证人签名数组
    * @param tokenId 资产 ID
    */
   certifyAsset: TypedContractMethod<
     [tokenId: BigNumberish, comment: string, signatures: BytesLike[]],
+    [void],
+    "nonpayable"
+  >;
+
+  certifyAssetWithHashComments: TypedContractMethod<
+    [
+      tokenId: BigNumberish,
+      certifierHashComments: DigitalAsset.CertifierHashCommentStruct[],
+      signatures: BytesLike[]
+    ],
     [void],
     "nonpayable"
   >;
@@ -717,9 +779,31 @@ export interface DigitalAsset extends BaseContract {
     "nonpayable"
   >;
   getFunction(
+    nameOrSignature: "certifyAssetWithMultipleComments"
+  ): TypedContractMethod<
+    [
+      tokenId: BigNumberish,
+      certifierComments: DigitalAsset.CertifierCommentStruct[],
+      signatures: BytesLike[]
+    ],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "certifyAsset"
   ): TypedContractMethod<
     [tokenId: BigNumberish, comment: string, signatures: BytesLike[]],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "certifyAssetWithHashComments"
+  ): TypedContractMethod<
+    [
+      tokenId: BigNumberish,
+      certifierHashComments: DigitalAsset.CertifierHashCommentStruct[],
+      signatures: BytesLike[]
+    ],
     [void],
     "nonpayable"
   >;

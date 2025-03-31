@@ -100,7 +100,9 @@ export const useUserStore = defineStore('user', {
     // 解绑钱包
     async unbindWallet() {
       try {
-        const response = await axios.post('/api/unbind-wallet');
+        const response = await axios.post('/api/unbind-wallet', {}, {
+          headers: { Authorization: `Bearer ${this.profile?.token}` }
+        });
         if (response.data.success) {
           if (this.profile) {
             this.profile.walletAddress = '';

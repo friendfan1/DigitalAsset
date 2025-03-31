@@ -26,8 +26,15 @@ public class CertificationSignature {
     @Column(name = "sign_time", nullable = false)
     private Timestamp timeStamp;
 
-    @Column(name = "message_to_sign", nullable = false)
-    private  String messageToSign;
-
-
+    @Column(name = "message_to_sign", nullable = false, length = 2000)
+    private String messageToSign;
+    
+    @Column(name = "message_hash", nullable = true, length = 1000)
+    private String messageHash;
+    
+    @Column(name = "reason_hash", nullable = true, length = 1000)
+    private String reasonHash;
+    
+    @Column(name = "comment", nullable = true)
+    private String comment;
 } 

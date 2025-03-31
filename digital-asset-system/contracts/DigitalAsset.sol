@@ -35,6 +35,18 @@ contract DigitalAsset is ERC721, ERC721Burnable, ReentrancyGuard {
         string comment;           // 认证评论
     }
 
+    // 添加认证者评论结构体
+    struct CertifierComment {
+        address certifier;        // 认证者地址
+        string comment;           // 认证者评论
+    }
+
+    // 添加认证者哈希评论结构体
+    struct CertifierHashComment {
+        address certifier;        // 认证者地址
+        bytes32 commentHash;      // 认证者评论哈希值
+    }
+
     // 状态变量
     uint256 private _tokenIdCounter; // Token ID 计数器
     mapping(uint256 => AssetMetadata) private _metadata; // Token ID 到元数据的映射
@@ -159,54 +171,72 @@ contract DigitalAsset is ERC721, ERC721Burnable, ReentrancyGuard {
     }
 
     /**
-     * @dev 认证资产
+     * @dev 认证资产 - 支持哈希评论版本
      * @param tokenId 资产 ID
-     * @param comment 认证评论
+     * @param certifierHashComments 认证者哈希评论数组
      * @param signatures 认证人签名数组
      */
-    function certifyAsset(
+    function certifyAssetWithHashComments(
         uint256 tokenId,
-        string memory comment,
+        CertifierHashComment[] memory certifierHashComments,
         bytes[] memory signatures
     ) external onlyCertifier {
         require(_exists(tokenId), "Asset not exist");
         require(signatures.length >= 2, "Requires multi-sig");
-
-        // 构造消息哈希
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(
-                "\x19Ethereum Signed Message:\n32",
-                keccak256(abi.encodePacked(tokenId, comment))
-            )
-        );
+        require(certifierHashComments.length == signatures.length, "Comments and signatures must match");
 
         // 验证签名
         address[] memory signers = new address[](signatures.length);
         for (uint i = 0; i < signatures.length; i++) {
+            address certifier = certifierHashComments[i].certifier;
+            bytes32 commentHash = certifierHashComments[i].commentHash;
+            
+            // 直接使用评论哈希构建消息哈希
+            bytes32 messageHash = keccak256(
+                abi.encodePacked(
+                    "\x19Ethereum Signed Message:\n32",
+                    keccak256(abi.encodePacked(tokenId, commentHash))
+                )
+            );
+            
             signers[i] = ECDSA.recover(messageHash, signatures[i]);
+            require(signers[i] == certifier, "Signature does not match certifier");
             require(
                 rbac.hasRole(rbac.CERTIFIER_ROLE(), signers[i]),
                 "Invalid certifier"
             );
-
+            
             // 检查签名者是否重复
             for (uint j = 0; j < i; j++) {
                 require(signers[i] != signers[j], "Duplicate signer");
             }
+            
+            // 存储每个认证者的评论 - 使用哈希值的十六进制表示
+            _certificationHistory[tokenId].push(Certification({
+                certifier: certifier,
+                timestamp: block.timestamp,
+                comment: toHexString(commentHash)
+            }));
         }
-
+        
         // 更新资产认证状态
         _metadata[tokenId].isCertified = true;
-
-        // 添加认证记录
-        _certificationHistory[tokenId].push(Certification({
-            certifier: msg.sender,
-            timestamp: block.timestamp,
-            comment: comment
-        }));
-
-        // 触发事件
-        emit AssetCertified(tokenId, msg.sender, comment, block.timestamp);
+        
+        // 触发认证事件
+        emit AssetCertified(tokenId, msg.sender, "Multiple certifiers approved with hash comments", block.timestamp);
+    }
+    
+    /**
+     * @dev 将字节转换为十六进制字符串
+     * @param value 要转换的字节
+     */
+    function toHexString(bytes32 value) internal pure returns (string memory) {
+        bytes memory buffer = new bytes(64);
+        for (uint256 i = 0; i < 32; i++) {
+            buffer[i*2] = bytes1(uint8(uint8(value[i] >> 4) + (uint8(value[i] >> 4) < 10 ? 48 : 87)));
+            buffer[i*2+1] = bytes1(uint8(uint8(value[i] & 0x0f) + (uint8(value[i] & 0x0f) < 10 ? 48 : 87)));
+        }
+        return string(buffer);
     }
 
     /**

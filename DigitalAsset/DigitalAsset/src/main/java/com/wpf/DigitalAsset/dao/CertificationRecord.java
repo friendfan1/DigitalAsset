@@ -1,5 +1,6 @@
 package com.wpf.DigitalAsset.dao;
 
+import com.wpf.DigitalAsset.dto.UpdateDatabaseDTO;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -26,12 +27,6 @@ public class CertificationRecord {
     @Column(name = "certification_time", nullable = false)
     private LocalDateTime certificationTime;
     
-    @Column(name = "certificate_cid", length = 100)
-    private String certificateCid;
-    
-    @Column(name = "validity_period")
-    private Integer validityPeriod; // 有效期（天），null表示永久有效
-    
     @Column(name = "transaction_hash", length = 66)
     private String transactionHash;
     
@@ -41,10 +36,10 @@ public class CertificationRecord {
     }
     
     // 从认证请求创建记录的构造函数
-    public CertificationRecord(AssetCertificationRequest request) {
+    public CertificationRecord(UpdateDatabaseDTO request) {
         this.tokenId = request.getTokenId();
         this.certifierAddress = request.getCertifierAddress();
         this.certificationTime = LocalDateTime.now();
-        this.certificateCid = request.getCertificateCid();
+        this.transactionHash = request.getTxHash();
     }
 } 
