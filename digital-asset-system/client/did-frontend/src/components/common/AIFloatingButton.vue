@@ -9,7 +9,8 @@
     <el-dialog
       v-model="showAIChat"
       title="AI 智能助手"
-      width="800px"
+      width="80%"
+      height="80%"
       :before-close="handleClose"
       :show-close="true"
       class="ai-chat-dialog"
@@ -50,26 +51,26 @@ const handleClose = () => {
 <style scoped>
 .ai-floating-btn {
   position: fixed;
-  right: 30px;
-  bottom: 30px;
-  width: 60px;
-  height: 60px;
+  right: 25px;
+  bottom: 25px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
   background: #0a192f;
   color: #64ffda;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
   cursor: pointer;
   z-index: 1000;
   transition: all 0.3s ease;
-  border: 2px solid #64ffda;
+  border: 1px solid #64ffda;
 }
 
 .ai-floating-btn:hover {
   transform: scale(1.05);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   background: rgba(10, 25, 47, 0.9);
 }
 
@@ -78,33 +79,42 @@ const handleClose = () => {
 }
 
 .ai-floating-btn .el-icon {
-  font-size: 24px;
+  font-size: 22px;
 }
 
 :deep(.ai-chat-dialog) {
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid #233554;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border-radius: 0; /* 移除圆角 */
+  border: none; /* 移除边框 */
+  box-shadow: none; /* 移除阴影 */
+  background: transparent; /* 确保背景透明 */
+  padding: 0; /* 移除内边距 */
+}
+
+:deep(.el-dialog) {
+  border-radius: 0; /* 移除圆角 */
+  border: none; /* 移除边框 */
+  box-shadow: none; /* 移除阴影 */
+  background: transparent; /* 确保背景透明 */
+  padding: 0; /* 移除内边距 */
 }
 
 :deep(.el-dialog__header) {
   background: #0a192f;
   color: #e6f1ff;
-  padding: 15px 20px;
+  padding: 8px 12px;
   margin-right: 0;
-  border-bottom: 1px solid #233554;
+  border-bottom: 1px solid rgba(35, 53, 84, 0.3);
 }
 
 :deep(.el-dialog__title) {
   color: #64ffda;
   font-weight: 600;
-  font-size: 18px;
+  font-size: 16px;
 }
 
-:deep(.el-dialog__headerbtn) {
-  top: 15px;
-}
+/* :deep(.el-dialog__headerbtn) {
+  top: 0;
+} */
 
 :deep(.el-dialog__headerbtn .el-dialog__close) {
   color: #64ffda;
@@ -115,7 +125,7 @@ const handleClose = () => {
 }
 
 :deep(.el-dialog__body) {
-  padding: 0;
-  background: #f8f9fa;
+  padding: 0; /* 确保内容区域无额外内边距 */
+  background: transparent; /* 确保背景透明 */
 }
-</style> 
+</style>

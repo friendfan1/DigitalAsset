@@ -41,21 +41,14 @@
       <div class="preview-section">
         <!-- 图片预览 -->
         <div v-if="assetPreviewUrl && assetDetails.metadata.fileType.startsWith('image/')">
-          <iframe  
-            :src="assetPreviewUrl" 
-            @load="handleIframeLoad"
-            @error="handleIframeError"
-            v-if="!iframeLoadFailed"
-            style="width: 100%; height: 500px; border: none; margin-bottom: 1rem;"
-          ></iframe>
-          <!-- 备用图片显示 -->
-          <img 
-            v-if="iframeLoadFailed"
-            :src="assetPreviewUrl"
-            @error="handleImageError"
-            style="max-width: 100%; max-height: 500px; margin: 0 auto; display: block; margin-bottom: 1rem;"
-            alt="资产预览"
-          />
+          <div class="image-preview-container">
+            <img 
+              :src="assetPreviewUrl"
+              @error="handleImageError"
+              alt="资产预览"
+              class="preview-image"
+            />
+          </div>
         </div>
         
         <!-- PDF预览 -->
@@ -301,4 +294,27 @@ const formatFileSize = (size: number) => {
   max-width: 100%;
   object-fit: contain;
 }
-</style> 
+
+.preview-section img {
+  object-fit: contain; /* 确保图片完整显示 */
+  max-height: 500px; /* 限制图片最大高度 */
+  width: 100%; /* 图片宽度自适应 */
+}
+
+.image-preview-container {
+  width: 100%;
+  height: 500px; /* 固定预览框高度 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden; /* 隐藏超出部分 */
+  background-color: #f9f9f9; /* 设置背景色以区分图片边界 */
+  border-radius: 4px;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain; /* 确保图片完整显示 */
+}
+</style>

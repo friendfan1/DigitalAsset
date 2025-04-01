@@ -8,8 +8,6 @@
         <!-- 登录后的导航菜单 -->
         <div v-if="authStore.isLoggedIn && authStore.profile?.role==='user'" class="nav-main">
             <router-link to="/access" class="nav-item">资产管理</router-link>
-            <router-link to="/asset/trade" class="nav-item">资产交易</router-link>
-            <router-link to="/asset/cert" class="nav-item">资产存证</router-link>
             <router-link v-if="hasCertifierRole" to="/asset/certification" class="nav-item">资产认证</router-link>
         </div>
         <div v-if="authStore.isLoggedIn && authStore.profile?.role==='admin'" class="nav-main">

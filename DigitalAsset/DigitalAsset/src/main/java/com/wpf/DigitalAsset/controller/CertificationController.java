@@ -14,6 +14,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,6 +37,8 @@ public class CertificationController {
     private CertificationService certificationService;
     @Autowired
     private CertificationRecordRepository certificationRecordRepository;
+    @Autowired
+    private UserRepository userRepository;
     
     /**
      * 获取所有认证者列表
@@ -233,6 +237,12 @@ public class CertificationController {
             @Valid CertificationRecordsQueryDTO query,
             BindingResult bindingResult) {
 
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String userName = authentication.getName();
+        String address = userRepository.findByUsername(userName)
+                .map(User::getWeb3address)
+                .orElseThrow();
+
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest()
                     .body(bindingResult.getAllErrors());
@@ -250,7 +260,7 @@ public class CertificationController {
 
         Specification<CertificationRecord> spec = (root, cq, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-
+            predicates.add(cb.equal(root.get("certifierAddress"), address));
             if (query.getStatus() != null) {
                 try {
                     predicates.add(cb.equal(
@@ -266,7 +276,7 @@ public class CertificationController {
             }
 
             if (query.getStartDate() != null && query.getEndDate() != null) {
-                predicates.add((Predicate) cb.between(
+                predicates.add( cb.between(
                         root.get("createdAt"),
                         query.getStartDate(),
                         query.getEndDate().plusDays(1)
@@ -277,7 +287,7 @@ public class CertificationController {
         };
 
         Page<CertificationRecord> pageResult = certificationRecordRepository.findAll(spec, pageable);
-
+        logger.info(pageResult.toString());
         return ResponseEntity.ok()
                 .body(new PageResult<>(
                         pageResult.getContent(),

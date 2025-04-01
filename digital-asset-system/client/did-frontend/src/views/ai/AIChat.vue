@@ -1,10 +1,9 @@
 <template>
   <div class="ai-chat-container">
     <div class="chat-header">
-      <h2>AI 智能助手</h2>
       <div class="header-controls">
         <div class="model-selector">
-          <el-select v-model="selectedModel" placeholder="选择AI模型" size="small">
+          <el-select v-model="selectedModel" placeholder="选择模型" size="small">
             <el-option
               v-for="model in AVAILABLE_MODELS"
               :key="model"
@@ -20,7 +19,7 @@
           :disabled="isLoading"
           class="clear-btn"
         >
-          清除对话
+          清除
         </el-button>
       </div>
     </div>
@@ -45,7 +44,7 @@
       <el-input
         v-model="inputMessage"
         type="textarea"
-        :rows="3"
+        :rows="2"
         placeholder="请输入您的问题..."
         @keyup.enter="sendMessage"
         :disabled="isLoading"
@@ -172,41 +171,38 @@ onMounted(() => {
 
 <style scoped>
 .ai-chat-container {
-  height: 70vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: #f8f9fa;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
-  border: 1px solid rgba(100, 255, 218, 0.2);
+  border: none;
+  margin: 0;
 }
 
 .chat-header {
-  padding: 15px 20px;
+  padding: 6px 10px;
   background: rgba(10, 25, 47, 0.8);
-  border-bottom: 1px solid rgba(100, 255, 218, 0.3);
-  text-align: center;
-}
-
-.chat-header h2 {
-  margin: 0;
-  color: #64ffda;
-  font-size: 20px;
-  margin-bottom: 10px;
-  font-weight: 600;
+  border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .header-controls {
   display: flex;
-  justify-content: center;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
 }
 
 .clear-btn {
   background-color: transparent !important;
   border-color: #ff5252 !important;
   color: #ff5252 !important;
+  padding: 3px 6px;
+  font-size: 12px;
+  height: 28px;
 }
 
 .clear-btn:hover {
@@ -223,21 +219,25 @@ onMounted(() => {
 }
 
 .model-selector .el-select {
-  width: 300px;
+  width: 170px;
 }
 
 .model-selector :deep(.el-input__wrapper) {
   background-color: rgba(10, 25, 47, 0.6);
-  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.3);
-  border-color: rgba(100, 255, 218, 0.3);
+  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.2);
+  border-color: rgba(100, 255, 218, 0.2);
+  padding: 0 6px;
+  height: 28px;
 }
 
 .model-selector :deep(.el-input__inner) {
   color: #e6f1ff;
+  font-size: 12px;
 }
 
 .model-selector :deep(.el-select__caret) {
   color: #64ffda;
+  font-size: 12px;
 }
 
 :deep(.el-select-dropdown) {
@@ -247,6 +247,8 @@ onMounted(() => {
 
 :deep(.el-select-dropdown__item) {
   color: #e6f1ff;
+  font-size: 12px;
+  padding: 4px 8px;
 }
 
 :deep(.el-select-dropdown__item.hover) {
@@ -262,16 +264,16 @@ onMounted(() => {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
   background: #f8f9fa;
 }
 
 .message {
   display: flex;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .user-message {
@@ -279,18 +281,18 @@ onMounted(() => {
 }
 
 .message-content {
-  max-width: 85%;
-  padding: 12px 16px;
-  border-radius: 12px;
+  max-width: 90%;
+  padding: 10px 12px;
+  border-radius: 8px;
   position: relative;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
 .user-message .message-content {
   background: rgba(10, 25, 47, 0.8);
   color: #e6f1ff;
-  border-radius: 12px 12px 0 12px;
-  border: 1px solid rgba(100, 255, 218, 0.3);
+  border-radius: 8px 8px 0 8px;
+  border: 1px solid rgba(100, 255, 218, 0.2);
 }
 
 .user-message .message-content * {
@@ -355,22 +357,22 @@ onMounted(() => {
 .ai-message .message-content {
   background: #fff;
   color: #333;
-  border-radius: 12px 12px 12px 0;
+  border-radius: 8px 8px 8px 0;
   border: 1px solid #e4e7ed;
 }
 
 .message-time {
-  font-size: 12px;
+  font-size: 11px;
   color: #999;
-  margin-top: 6px;
+  margin-top: 4px;
   text-align: right;
 }
 
 .chat-input {
-  padding: 20px;
-  border-top: 1px solid rgba(100, 255, 218, 0.2);
+  padding: 6px 10px;
+  border-top: 1px solid rgba(100, 255, 218, 0.1);
   display: flex;
-  gap: 10px;
+  gap: 6px;
   background: rgba(10, 25, 47, 0.05);
 }
 
@@ -382,11 +384,10 @@ onMounted(() => {
   background: #fff;
   border: 1px solid #dcdfe6;
   transition: all 0.3s;
-}
-
-.chat-input .el-input :deep(.el-textarea__inner:focus) {
-  border-color: #64ffda;
-  box-shadow: 0 0 0 2px rgba(100, 255, 218, 0.2);
+  min-height: 48px;
+  font-size: 13px;
+  padding: 6px 10px;
+  line-height: 1.4;
 }
 
 .chat-input .el-button {
@@ -394,6 +395,9 @@ onMounted(() => {
   background: #0a192f;
   border-color: #0a192f;
   color: #64ffda;
+  padding: 6px 12px;
+  font-size: 13px;
+  height: 32px;
 }
 
 .chat-input .el-button:hover {
@@ -401,24 +405,24 @@ onMounted(() => {
   border-color: #64ffda;
 }
 
-/* Markdown样式覆盖 */
+/* Markdown样式优化 */
 :deep(.markdown-body) {
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.5;
   word-wrap: break-word;
   color: inherit;
 }
 
 :deep(.markdown-body pre) {
-  background-color: rgba(0, 0, 0, 0.1);
-  border-radius: 6px;
-  padding: 16px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  padding: 12px;
   overflow: auto;
-  margin: 8px 0;
+  margin: 6px 0;
 }
 
 :deep(.markdown-body code) {
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
   border-radius: 3px;
   font-size: 85%;
   margin: 0;
@@ -436,65 +440,53 @@ onMounted(() => {
   word-wrap: normal;
 }
 
-:deep(.markdown-body pre > code) {
-  background-color: transparent;
-  border: 0;
-  display: block;
-  margin: 0;
-  overflow: auto;
-  padding: 0;
-  white-space: pre;
-  word-break: normal;
-  word-wrap: normal;
-}
-
 :deep(.markdown-body blockquote) {
-  margin: 8px 0;
-  padding: 0 1em;
+  margin: 6px 0;
+  padding: 0 0.8em;
   color: inherit;
-  border-left: 0.25em solid rgba(0, 0, 0, 0.2);
+  border-left: 0.2em solid rgba(0, 0, 0, 0.1);
 }
 
 :deep(.markdown-body table) {
   border-spacing: 0;
   border-collapse: collapse;
-  margin: 8px 0;
+  margin: 6px 0;
   width: 100%;
 }
 
 :deep(.markdown-body table th),
 :deep(.markdown-body table td) {
-  padding: 6px 13px;
+  padding: 4px 8px;
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 :deep(.markdown-body table tr) {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(0, 0, 0, 0.02);
   border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 :deep(.markdown-body table tr:nth-child(2n)) {
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: rgba(0, 0, 0, 0.01);
 }
 
-/* 自定义滚动条美化 */
+/* 滚动条美化 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(10, 25, 47, 0.1);
-  border-radius: 4px;
+  background: rgba(10, 25, 47, 0.05);
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 255, 218, 0.3);
-  border-radius: 4px;
+  background: rgba(100, 255, 218, 0.2);
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 255, 218, 0.5);
+  background: rgba(100, 255, 218, 0.3);
 }
 
 </style> 

@@ -21,9 +21,7 @@ public class CertificationRecordsQueryDTO {
     @NotNull(message = "每页数量不能为空")
     private Integer pageSize = 10;  // 默认值
 
-    @Pattern(regexp = "PENDING|APPROVED|REJECTED",
-            message = "状态值不合法",
-            flags = Pattern.Flag.CASE_INSENSITIVE)
+
     private AssetCertificationRequest.RequestStatus status;
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)

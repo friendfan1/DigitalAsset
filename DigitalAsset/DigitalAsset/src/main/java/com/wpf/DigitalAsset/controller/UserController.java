@@ -340,6 +340,7 @@ public class UserController {
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String username = authentication.getName();
+
             
             userService.unbindWallet(username);
             

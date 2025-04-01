@@ -144,7 +144,7 @@ onUnmounted(() => {
 .upload-status-monitor {
   position: fixed;
   bottom: 20px;
-  right: 20px;
+  left: 20px;
   width: 300px;
   background-color: #fff;
   border-radius: 8px;

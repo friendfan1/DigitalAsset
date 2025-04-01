@@ -328,18 +328,7 @@
         </div>
         
         <!-- 筛选选项 -->
-        <div class="filter-row">
-          <div class="filter-group">
-            <span class="filter-label">认证状态:</span>
-            <el-select v-model="certStatusFilter" placeholder="全部状态" style="width: 150px">
-              <el-option label="全部状态" value="all" />
-              <el-option label="待认证" value="PENDING" />
-              <el-option label="已通过" value="APPROVED" />
-              <el-option label="已拒绝" value="REJECTED" />
-              <el-option label="已完成" value="COMPLETED" />
-            </el-select>
-          </div>
-          
+        <div class="filter-row">    
           <div class="filter-group">
             <span class="filter-label">时间范围:</span>
             <el-date-picker
@@ -377,53 +366,35 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column label="认证者" min-width="200">
+        <el-table-column label="认证者" min-width="220">
           <template #default="{ row }">
             <div class="certifier-info-row">
-              <span class="certifier-name">{{ row.certifierName || "未命名认证者" }}</span>
               <el-tooltip :content="row.certifierAddress" placement="top">
                 <span class="certifier-address">{{ formatAddress(row.certifierAddress) }}</span>
               </el-tooltip>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="申请日期" width="180" sortable>
+        <el-table-column label="认证时间" width="180" sortable>
           <template #default="{ row }">
-            {{ formatDate(row.requestDate) }}
+            {{ formatDate(row.certificationTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="更新日期" width="180" sortable>
+        <el-table-column label="交易哈希" min-width="220">
           <template #default="{ row }">
-            {{ formatDate(row.updateDate) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="认证状态" width="120" sortable="custom" prop="status">
-          <template #default="{ row }">
-            <div class="status-tag" :class="row.status.toLowerCase()">
-              {{ statusMap[row.status as keyof typeof statusMap] || row.status }}
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="交易哈希" min-width="170">
-          <template #default="{ row }">
-            <div v-if="row.txHash">
-              <el-tooltip :content="row.txHash" placement="top">
-                <span class="txhash-text" @click="openExplorer(row.txHash)">
-                  {{ formatAddress(row.txHash) }}
+            <div v-if="row.transactionHash">
+              <el-tooltip :content="row.transactionHash" placement="top">
+                <span class="txhash-text" @click="openExplorer(row.transactionHash)">
+                  {{ formatAddress(row.transactionHash) }}
                 </span>
               </el-tooltip>
             </div>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="说明" min-width="200" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.reason || "-" }}
-          </template>
-        </el-table-column>
         <el-table-column label="操作" width="150">
           <template #default="{ row }">
-            <el-button size="small" @click="viewCertificationDetail(row)">查看详情</el-button>
+            <el-button size="small" @click="viewAssetById(row.tokenId)">查看详情</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -668,6 +639,7 @@ import axios from 'axios'
 import { useUserStore } from '@/stores/user'
 import AssetDetailDialog from '@/components/AssetDetailDialog.vue'
 import { useWalletStore } from '@/stores/wallet'
+import { debounce } from 'lodash'
 
 const userStore = useUserStore()
 const walletStore = useWalletStore()
@@ -1788,66 +1760,26 @@ const fetchAssets = async () => {
 };
 
 // 添加资产认证记录相关数据和方法
-const certSearchQuery = ref('')
-const certStatusFilter = ref('all')
-const certDateRange = ref(null)
+const certificationRecords = ref<any[]>([]);
+const certSearchQuery = ref('');
+const certDateRange = ref(null);
+const certCurrentPage = ref(1);
+const certPageSize = ref(10);
+const totalCertRecords = ref(0);
+const loadingCertRecords = ref(false);
 
-// 定义认证记录的接口
-interface CertificationRecord {
-  tokenId: string;
-  certifierAddress: string;
-  certifierName?: string;
-  requestDate: string;
-  updateDate?: string;
-  status: string;
-  txHash?: string;
-  reason?: string;
-}
-
-const certificationRecords = ref<CertificationRecord[]>([])
-const loadingCertRecords = ref(false)
-const certCurrentPage = ref(1)
-const certPageSize = ref(10)
-const totalCertRecords = ref(0)
-const statusMap = {
-  'PENDING': '待认证',
-  'APPROVED': '已通过',
-  'REJECTED': '已拒绝',
-  'COMPLETED': '已完成'
-}
-
+// 计算过滤后的认证记录
 const filteredCertRecords = computed(() => {
-  let records = certificationRecords.value.slice()
-  
-  // 关键字搜索
-  if (certSearchQuery.value) {
-    const query = certSearchQuery.value.toLowerCase()
-    records = records.filter(record => 
-      String(record.tokenId).includes(query) ||
-      (record.certifierAddress && record.certifierAddress.toLowerCase().includes(query)) ||
-      (record.certifierName && record.certifierName.toLowerCase().includes(query))
-    )
+  if (!certSearchQuery.value) {
+    return certificationRecords.value;
   }
   
-  // 状态筛选
-  if (certStatusFilter.value !== 'all') {
-    records = records.filter(record => record.status === certStatusFilter.value)
-  }
-  
-  // 日期范围筛选
-  if (certDateRange.value && certDateRange.value[0] && certDateRange.value[1]) {
-    const startDate = new Date(certDateRange.value[0])
-    const endDate = new Date(certDateRange.value[1])
-    endDate.setHours(23, 59, 59, 999)  // 设置为当天结束时间
-    
-    records = records.filter(record => {
-      const recordDate = new Date(record.requestDate)
-      return recordDate >= startDate && recordDate <= endDate
-    })
-  }
-  
-  return records
-})
+  const query = certSearchQuery.value.toLowerCase();
+  return certificationRecords.value.filter(record => 
+    record.tokenId.toString().includes(query) ||
+    record.certifierAddress.toLowerCase().includes(query)
+  );
+});
 
 // 获取认证记录列表
 const fetchCertificationRecords = async () => {
@@ -1858,24 +1790,21 @@ const fetchCertificationRecords = async () => {
     params.append('page', certCurrentPage.value.toString())
     params.append('pageSize', certPageSize.value.toString())
     
-    if (certStatusFilter.value !== 'all') {
-      params.append('status', certStatusFilter.value)
-    }
-    
     if (certDateRange.value && certDateRange.value[0] && certDateRange.value[1]) {
       params.append('startDate', certDateRange.value[0])
       params.append('endDate', certDateRange.value[1])
     }
-    
+
     const response = await axios.get(`/api/certification/records?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     
-    if (response.data.success) {
-      certificationRecords.value = response.data.data.records
-      totalCertRecords.value = response.data.data.totalCount
+    // 适配新的返回格式: { "content": [...], "total": n }
+    if (response.data) {
+      certificationRecords.value = response.data.content || []
+      totalCertRecords.value = response.data.total || 0
     } else {
-      throw new Error(response.data.message || '获取认证记录失败')
+      throw new Error('获取认证记录失败: 返回数据格式错误')
     }
   } catch (error: any) {
     console.error('获取认证记录失败:', error)
@@ -1889,20 +1818,25 @@ const fetchCertificationRecords = async () => {
 
 // 重置认证记录筛选
 const resetCertFilters = () => {
-  certSearchQuery.value = ''
-  certStatusFilter.value = 'all'
-  certDateRange.value = null
-  fetchCertificationRecords()
-}
+  certSearchQuery.value = '';
+  certDateRange.value = null;
+  fetchCertificationRecords();
+};
 
 // 处理认证记录搜索
-const handleCertSearch = () => {
-  // 本地前端筛选，不需要重新请求API
-}
+const handleCertSearch = debounce(() => {
+  if (!certSearchQuery.value) {
+    // 如果搜索框为空，显示所有记录
+    return;
+  }
+  
+  const query = certSearchQuery.value.toLowerCase();
+  // 重新获取记录，应用搜索过滤
+  fetchCertificationRecords();
+}, 300);
 
 // 处理认证记录排序
 const handleCertSort = ({ prop, order }: { prop: string, order: string }) => {
-  // 这里可以实现排序逻辑
   console.log('排序:', prop, order)
 }
 
@@ -1963,27 +1897,14 @@ const openExplorer = (txHash: string) => {
 }
 
 // 查看认证详情
-const viewCertificationDetail = (certRecord: CertificationRecord) => {
+const viewCertificationDetail = (certRecord: any) => {
   // 如果有资产ID，可以打开资产认证对话框
   if (certRecord.tokenId) {
-    // 首先获取资产详情
-    viewAssetById(certRecord.tokenId)
-    
-    // 然后打开认证对话框显示其认证状态
-    setTimeout(() => {
-      // 在资产详情加载完成后，打开认证对话框
-      if (assetDetails.value) {
-        selectedAssetForCert.value = assetDetails.value
-        certificationRequestDialogVisible.value = true
-        // 获取认证状态
-        fetchCertificationStatus(Number(certRecord.tokenId))
-      }
-    }, 500)
-  } else {
-    // 如果没有资产ID，显示一个简单的对话框
-    ElMessage.info('认证记录详情：' + certRecord.reason || '无说明')
+    ElMessage.info(`查看资产 ${certRecord.tokenId} 的认证详情`);
+    // 根据实际需要，这里可能会打开一个对话框或跳转页面
+    viewAssetById(certRecord.tokenId);
   }
-}
+};
 
 // 在组件挂载时获取认证记录
 onMounted(async () => {
@@ -3258,7 +3179,7 @@ tr:hover .el-button--danger {
 
 .certifier-address {
   font-size: 12px;
-  color: #bbbec4;
+  color: #ffffff;
   margin-top: 2px;
   font-weight: 500;
 }
@@ -3308,7 +3229,7 @@ tr:hover .el-button--danger {
 }
 
 .certifier-address {
-  color: #8892b0;
+  color: #ffffff;
   font-size: 0.9em;
 }
 
