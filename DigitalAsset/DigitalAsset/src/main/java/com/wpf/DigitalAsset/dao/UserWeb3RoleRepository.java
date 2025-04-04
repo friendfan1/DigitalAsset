@@ -9,7 +9,6 @@ import java.util.Optional;
 /**
  * 用户区块链角色仓库接口
  */
-@Repository
 public interface UserWeb3RoleRepository extends JpaRepository<UserWeb3Role, Long> {
     
     /**

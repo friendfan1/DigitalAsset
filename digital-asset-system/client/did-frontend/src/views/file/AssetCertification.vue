@@ -51,6 +51,7 @@
           </div>
         </template>
       </el-table-column>
+  
       <el-table-column label="文件大小" width="120">
         <template #default="{ row }">
           {{ formatFileSize(row.metadata.fileSize) }}
@@ -105,24 +106,40 @@
     </div>
 
     <!-- 资产详情对话框 -->
-    <el-dialog
-      v-model="assetDetailsDialogVisible"
-      title="资产详情"
-      width="800px"
-      @close="closeAssetDetails"
+    <asset-detail-dialog
+      v-if="selectedAssetForCert"
+      v-model:visible="assetDetailsDialogVisible"
+      :asset-details="selectedAssetForCert"
+      :asset-preview-url="assetPreviewUrl"
+      @close="handleDetailClose"
     >
-      <asset-detail-dialog
-        v-if="assetDetails"
-        :asset="assetDetails"
-        :preview-url="assetPreviewUrl"
-      />
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="assetDetailsDialogVisible = false">关闭</el-button>
+          <el-button type="primary" @click="selectedAssetForCert && downloadAsset(selectedAssetForCert)">下载文件</el-button>
+        </span>
+      </template>
+    </asset-detail-dialog>
+
+    <!-- 全屏图片预览 -->
+    <el-dialog
+      v-model="fullImageVisible"
+      width="90%"
+      :show-close="true"
+      :close-on-click-modal="true"
+      :close-on-press-escape="true"
+      class="full-image-dialog"
+    >
+      <div class="full-image-container">
+        <img :src="assetPreviewUrl" class="full-image" :alt="selectedAssetForCert?.metadata.fileName" />
+      </div>
     </el-dialog>
 
     <!-- 认证对话框 -->
     <el-dialog
       v-model="certificationDialogVisible"
       title="资产认证"
-      width="600px"
+      width="800px"
       :close-on-click-modal="false"
     >
       <div v-loading="isLoadingStatus">
@@ -142,7 +159,71 @@
             <el-descriptions-item label="上传时间">
               {{ formatDate(selectedAssetForCert?.metadata.uploadTime) }}
             </el-descriptions-item>
+            <el-descriptions-item label="文件类型">
+              {{ selectedAssetForCert?.metadata.fileType }}
+            </el-descriptions-item>
+            <el-descriptions-item label="分类">
+              {{ selectedAssetForCert?.metadata.category || '未分类' }}
+            </el-descriptions-item>
+            <el-descriptions-item :span="2" label="描述">
+              {{ selectedAssetForCert?.metadata.description || '暂无描述' }}
+            </el-descriptions-item>
           </el-descriptions>
+        </div>
+
+        <!-- 认证请求信息 -->
+        <div class="certification-request-info">
+          <h3>认证请求信息</h3>
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="请求ID">
+              {{ selectedAssetForCert?.certificationRequest?.requestId }}
+            </el-descriptions-item>
+            <el-descriptions-item label="请求时间">
+              {{ formatDate(selectedAssetForCert?.certificationRequest?.requestTime || '') }}
+            </el-descriptions-item>
+            <el-descriptions-item label="请求者">
+              {{ selectedAssetForCert?.certificationRequest?.requester ? formatAddress(selectedAssetForCert.certificationRequest.requester) : '' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="认证者">
+              {{ selectedAssetForCert?.certificationRequest?.certifierAddress ? formatAddress(selectedAssetForCert.certificationRequest.certifierAddress) : '' }}
+            </el-descriptions-item>
+            <el-descriptions-item :span="2" label="认证请求说明">
+              <div style="white-space: pre-wrap;">{{ selectedAssetForCert?.certificationRequest?.reason || '无' }}</div>
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
+
+        <!-- 认证材料 -->
+        <div v-if="selectedAssetForCert?.certificationRequest?.fileResources?.length" class="certification-materials">
+          <h3>认证材料</h3>
+          <el-table :data="selectedAssetForCert.certificationRequest.fileResources" border stripe>
+            <el-table-column label="文件名" prop="fileName" min-width="200" />
+            <el-table-column label="类型" prop="contentType" width="150" />
+            <el-table-column label="操作" width="200" fixed="right">
+              <template #default="{ row }">
+                <el-button-group>
+                  <el-button 
+                    type="primary" 
+                    link
+                    size="small"
+                    @click="downloadFile(row)"
+                  >
+                    <el-icon><Download /></el-icon>
+                    下载
+                  </el-button>
+                  <el-button 
+                    type="success" 
+                    link
+                    size="small"
+                    @click="previewFile(row)"
+                  >
+                    <el-icon><View /></el-icon>
+                    预览
+                  </el-button>
+                </el-button-group>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
 
         <!-- 认证状态 -->
@@ -164,7 +245,7 @@
                   状态：{{ status.status === 'APPROVED' ? '已认证' : '待认证' }}
                 </div>
                 <div v-if="status.reason" class="reason">
-                  认证意见：{{ status.reason }}
+                  认证理由：{{ status.reason }}
                 </div>
               </div>
             </el-timeline-item>
@@ -280,14 +361,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { View, Check, Search } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { View, Check, Search, Document, Download } from '@element-plus/icons-vue'
 import { getDigitalAssetService } from '@/utils/web3/DigitalAssetService'
 import { useUserStore } from '@/stores/user'
 import { useWalletStore } from '@/stores/wallet'
 import AssetDetailDialog from '@/components/AssetDetailDialog.vue'
 import { debounce } from 'lodash'
-import type { Asset, CertificationStatus } from '@/types/asset'
+import type { Asset, CertificationStatus, CertificationRequestDTO } from '@/types/asset'
+import axios from 'axios'
 
 const userStore = useUserStore()
 const walletStore = useWalletStore()
@@ -324,6 +406,11 @@ const batchCertificationForm = ref({
   comment: ''
 })
 
+// 添加新的状态
+const fullImageVisible = ref(false)
+const isLoadingPreview = ref(false)
+const iframeLoadFailed = ref(false)
+
 // 计算属性
 const filteredAssets = computed(() => {
   let filtered = assetList.value
@@ -335,12 +422,6 @@ const filteredAssets = computed(() => {
       asset.metadata.fileName.toLowerCase().includes(query)
     )
   }
-
-  // 只显示当前用户作为认证人的资产
-  filtered = filtered.filter(asset => {
-    const pendingCertifiers = asset.pendingCertifiers || []
-    return pendingCertifiers.includes(userStore.profile?.walletAddress || '')
-  })
 
   if (filterStatus.value !== 'all') {
     filtered = filtered.filter(asset => 
@@ -367,39 +448,171 @@ const isBatchCertificationFormValid = computed(() =>
   batchCertificationForm.value.comment.trim() !== ''
 )
 
+// 判断文件类型是否可预览
+const isFilePreviewable = (fileType: string): boolean => {
+  const previewableTypes = [
+    // 图片格式
+    'image/jpeg', 'image/png', 'image/gif', 'image/svg+xml',
+    // 文档格式
+    'application/pdf',
+    'text/plain', 'text/html', 'text/css', 'text/javascript',
+    // 视频格式
+    'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo',
+    // 音频格式
+    'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/x-m4a', 'audio/webm'
+  ];
+  
+  // 对于以某些前缀开头的类型也可预览
+  if (fileType.startsWith('image/') || 
+      fileType.startsWith('video/') || 
+      fileType.startsWith('audio/')) {
+    return true;
+  }
+  
+  return previewableTypes.includes(fileType.toLowerCase());
+};
+
+// 生成资产预览URL - 增强版，支持分片文件处理
+const generatePreviewUrl = async (asset: Asset) => {
+  try {
+    isLoadingPreview.value = true;
+    iframeLoadFailed.value = false; // 重置iframe加载状态
+    
+    // 检查文件类型是否可以预览
+    if (!asset.metadata || !asset.metadata.fileType) {
+      assetPreviewUrl.value = '';
+      isLoadingPreview.value = false;
+      return;
+    }
+    
+    const fileType = asset.metadata.fileType;
+    const isPreviewable = isFilePreviewable(fileType);
+    
+    if (!isPreviewable) {
+      assetPreviewUrl.value = '';
+      isLoadingPreview.value = false;
+      return;
+    }
+    
+    // 导入所需服务
+    const { getIPFSUrl } = await import('@/utils/ipfs');
+    const { ipfsConfig } = await import('@/config/ipfs.config');
+    const { getChunkedFileService } = await import('@/services/ChunkedFileService');
+    
+    // 获取IPFS网关
+    const ipfsGateway = window.ipfsGateway || ipfsConfig.gateway;
+    const chunkedService = getChunkedFileService(ipfsGateway);
+    
+    // 检查是否是分片文件
+    const isChunked = await chunkedService.isChunkedFile(asset.cid);
+    
+    if (isChunked) {
+      // 检测到分片文件
+      console.log('检测到分片文件:', asset.cid);
+      
+      // 获取元数据
+      const metadata = await chunkedService.getMetadata(asset.cid);
+      console.log('分片文件元数据:', metadata);
+      
+      // 获取预览模式
+      const previewMode = chunkedService.getPreviewMode(fileType);
+      
+      // 根据预览模式处理
+      if (previewMode === 'stream') {
+        // 视频和音频文件使用流服务
+        assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+        console.log('分片媒体流URL:', assetPreviewUrl.value);
+        ElMessage.info('正在加载媒体流，请稍候...');
+      } else if (previewMode === 'image') {
+        // 图片和PDF，尝试使用流服务直接显示
+        if (fileType.startsWith('image/')) {
+          // 对于图片，先尝试iframe方式查看
+          assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+          console.log('分片图片流URL:', assetPreviewUrl.value);
+          ElMessage.info('正在加载图片...');
+        } else if (fileType === 'application/pdf') {
+          // PDF文件使用流服务
+          assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+          console.log('分片PDF流URL:', assetPreviewUrl.value);
+          ElMessage.info('正在加载PDF...');
+        }
+      } else {
+        // 其他类型文件
+        ElMessage.info('该文件过大，已进行分片存储，请下载后查看');
+        assetPreviewUrl.value = '';
+      }
+    } else {
+      // 不是分片文件，使用标准路径
+      assetPreviewUrl.value = `${ipfsGateway}${asset.cid}/content`;
+      
+      // 对视频和音频添加时间戳参数避免缓存问题
+      if (fileType.startsWith('video/') || fileType.startsWith('audio/')) {
+        assetPreviewUrl.value += `?t=${Date.now()}`;
+      }
+      
+      console.log('标准预览URL:', assetPreviewUrl.value);
+    }
+  } catch (error) {
+    console.error('获取预览失败:', error);
+    assetPreviewUrl.value = '';
+    ElMessage.error('预览生成失败: ' + (error instanceof Error ? error.message : String(error)));
+  } finally {
+    isLoadingPreview.value = false;
+  }
+};
+
 // 方法
 const fetchAssets = async () => {
   try {
-    isLoading.value = true
-    const service = await getDigitalAssetService()
+    isLoading.value = true;
+    console.log('fetchAssets - 开始获取资产');
+    console.log('fetchAssets - 钱包地址:', walletStore.address);
     
-    // 获取所有资产
-    const result = await service.getUserAssetsWithPagination(
+    const service = await getDigitalAssetService();
+    const response = await service.getPendingCertificationRequests(
       walletStore.address,
-      currentPage.value,
-      pageSize.value
-    )
-    
-    // 获取每个资产的认证状态
-    const assetsWithCertificationStatus = await Promise.all(
-      result.assets.map(async (asset) => {
-        const certificationDetails = await service.getAssetCertificationDetails(Number(asset.tokenId))
-        return {
-          ...asset,
-          pendingCertifiers: certificationDetails.asset.certificationStatus.map(status => status.certifierAddress)
-        }
-      })
-    )
-    
-    assetList.value = assetsWithCertificationStatus
-    totalAssets.value = result.totalCount
+      userStore.profile?.token || ''
+    );
+
+    if (response.success) {
+      const pendingRequests = response.data;
+      console.log("整合后的数据", pendingRequests);
+      assetList.value = pendingRequests.map((request: CertificationRequestDTO) => ({
+        tokenId: request.tokenId.toString(),
+        cid: request.cid || '',
+        registrationDate: request.requestTime,
+        version: '1',
+        metadata: {
+          fileName: request.fileName || '',
+          fileType: request.fileType || '',
+          fileSize: request.fileSize || 0,
+          uploadTime: request.requestTime,
+          category: request.category || '未分类',
+          description: request.description || '暂无描述'
+        },
+        isCertified: request.chainStatus === 'APPROVED',
+        pendingCertifiers: [request.certifierAddress],
+        certificationRequest: request,
+        certificationStatus: [{
+          certifierAddress: request.certifierAddress,
+          status: (request.chainStatus === 'APPROVED' ? 'APPROVED' : 'PENDING'),
+          reason: request.chainComment || request.reason,
+          timestamp: request.certificationTime || new Date(request.requestTime).getTime(),
+          fileResources: request.fileResources || []
+        }]
+      }));
+      
+      totalAssets.value = pendingRequests.length;
+    } else {
+      ElMessage.error(response.message || '获取待认证资产列表失败');
+    }
   } catch (error) {
-    console.error('获取资产列表失败:', error)
-    ElMessage.error('获取资产列表失败')
+    console.error('获取资产列表失败:', error);
+    ElMessage.error('获取资产列表失败');
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
-}
+};
 
 const handleSearch = debounce(() => {
   currentPage.value = 1
@@ -452,29 +665,56 @@ const formatAddress = (address: string) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
-const showAssetDetails = async (asset: any) => {
+const showAssetDetails = async (asset: Asset) => {
   try {
-    assetDetails.value = asset
-    assetDetailsDialogVisible.value = true
+    selectedAssetForCert.value = asset;
+    assetDetailsDialogVisible.value = true;
     
     // 生成预览URL
-    const service = await getDigitalAssetService()
-    const { file } = await service.getAssetContent(asset.cid)
-    assetPreviewUrl.value = URL.createObjectURL(file)
+    await generatePreviewUrl(asset);
   } catch (error) {
-    console.error('获取资产详情失败:', error)
-    ElMessage.error('获取资产详情失败')
+    console.error('查看资产详情失败:', error);
+    ElMessage.error('查看资产详情失败');
   }
-}
+};
 
-const closeAssetDetails = () => {
-  assetDetailsDialogVisible.value = false
-  assetDetails.value = null
+const handleDetailClose = () => {
+  assetDetailsDialogVisible.value = false;
+  selectedAssetForCert.value = null;
+  // 释放预览URL
   if (assetPreviewUrl.value) {
-    URL.revokeObjectURL(assetPreviewUrl.value)
-    assetPreviewUrl.value = ''
+    URL.revokeObjectURL(assetPreviewUrl.value);
+    assetPreviewUrl.value = '';
   }
-}
+};
+
+const downloadAsset = async (asset: Asset) => {
+  if (!asset) return;
+  
+  try {
+    const service = await getDigitalAssetService();
+    const { file } = await service.getAssetContent(asset.cid);
+    
+    // 创建下载链接
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = asset.metadata.fileName;
+    document.body.appendChild(a);
+    a.click();
+    
+    // 清理
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+    
+    ElMessage.success('文件下载已开始');
+  } catch (error) {
+    console.error('下载文件失败:', error);
+    ElMessage.error('下载失败');
+  }
+};
 
 const showCertificationDialog = async (asset: any) => {
   try {
@@ -482,7 +722,7 @@ const showCertificationDialog = async (asset: any) => {
     const service = await getDigitalAssetService()
     const certificationDetails = await service.getAssetCertificationDetails(Number(asset.tokenId))
     const isCurrentUserCertifier = certificationDetails.asset.certificationStatus.some(
-      status => status.certifierAddress.toLowerCase() === walletStore.address.toLowerCase()
+      (status: CertificationStatus) => status.certifierAddress.toLowerCase() === walletStore.address.toLowerCase()
     )
 
     if (!isCurrentUserCertifier) {
@@ -503,27 +743,35 @@ const showCertificationDialog = async (asset: any) => {
 }
 
 const fetchCertificationStatus = async (tokenId: number) => {
-  if (!tokenId) return
+  if (!tokenId) return;
   
-  isLoadingStatus.value = true
+  isLoadingStatus.value = true;
   try {
-    const service = await getDigitalAssetService()
-    const result = await service.getAssetCertificationDetails(tokenId)
-    
-    // 显示所有认证者的状态
-    certificationStatus.value = result.asset.certificationStatus.map(status => ({
-      ...status,
-      status: status.status as 'PENDING' | 'APPROVED',
-      // 标记当前用户
-      isCurrentUser: status.certifierAddress.toLowerCase() === userStore.profile?.walletAddress?.toLowerCase()
-    }))
+    const service = await getDigitalAssetService();
+    const result = await service.getAssetCertificationDetails(tokenId);
+    // 确保 result.asset 和 certificationStatus 存在
+    if (result?.asset?.certificationStatus) {
+      certificationStatus.value = result.asset.certificationStatus.map((status: CertificationStatus) => ({
+        ...status,
+        status: status.status as 'PENDING' | 'APPROVED',
+        isCurrentUser: status.certifierAddress.toLowerCase() === userStore.profile?.walletAddress?.toLowerCase(),
+        reason: status.reason || '',
+        fileResources: status.fileResources || []
+      }));
+    } else {
+      // 如果没有认证状态，设置为空数组
+      certificationStatus.value = [];
+    }
+    console.log(certificationStatus.value);
   } catch (error) {
-    console.error('获取认证状态失败:', error)
-    ElMessage.error('获取认证状态失败')
+    console.error('获取认证状态失败:', error);
+    ElMessage.error('获取认证状态失败');
+    // 发生错误时也设置为空数组
+    certificationStatus.value = [];
   } finally {
-    isLoadingStatus.value = false
+    isLoadingStatus.value = false;
   }
-}
+};
 
 const certifyAsset = async () => {
   if (!selectedAssetForCert.value || !isCertificationFormValid.value) return
@@ -593,6 +841,127 @@ const certifyBatchAssets = async () => {
   }
 }
 
+// 修改下载文件方法
+const downloadFile = async (file: { accessUrl: string, fileName: string }) => {
+  try {
+    // 直接使用accessUrl，不需要额外拼接base URL
+    const fileUrl = file.accessUrl;
+    
+    // 发送带认证token的请求，设置responseType为blob
+    const response = await axios.get(fileUrl, {
+      headers: {
+        'Authorization': `Bearer ${userStore.profile?.token}`
+      },
+      responseType: 'blob' // 关键：设置响应类型为blob
+    });
+    
+    // 从响应头获取文件名（如果服务器提供）
+    const contentDisposition = response.headers['content-disposition'];
+    let fileName = file.fileName;
+    if (contentDisposition) {
+      const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+      if (matches != null && matches[1]) {
+        fileName = matches[1].replace(/['"]/g, '');
+      }
+    }
+    
+    // 创建下载链接
+    const blob = new Blob([response.data], { 
+      type: response.headers['content-type'] || 'application/octet-stream' 
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    ElMessage.success('文件下载成功');
+  } catch (error) {
+    console.error('下载文件失败:', error);
+    if (axios.isAxiosError(error)) {
+      ElMessage.error(`下载失败: ${error.response?.status === 404 ? '文件不存在' : error.message}`);
+    } else {
+      ElMessage.error('下载失败');
+    }
+  }
+};
+
+// 修改预览文件方法
+const previewFile = async (file: { accessUrl: string, fileName: string, contentType: string }) => {
+  try {
+    const previewUrl = file.accessUrl;
+    const fileName = file.fileName.toLowerCase();
+    const contentType = file.contentType;
+    
+    // 获取文件内容
+    const response = await axios.get(previewUrl, {
+      headers: {
+        'Authorization': `Bearer ${userStore.profile?.token}`
+      },
+      responseType: 'blob'
+    });
+    
+    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    const url = URL.createObjectURL(blob);
+    
+    // 根据文件类型处理预览
+    if (contentType.startsWith('image/') || fileName.endsWith('.pdf')) {
+      // 图片和PDF直接在新窗口打开
+      window.open(url);
+      
+      // 延迟释放URL
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 1000);
+    } else if (fileName.match(/\.(mp3|wav|ogg)$/i)) {
+      // 音频文件使用浏览器内置播放器
+      const audioPlayer = document.createElement('audio');
+      audioPlayer.src = url;
+      audioPlayer.controls = true;
+      
+      // 创建一个对话框来播放音频
+      ElMessageBox.alert(audioPlayer.outerHTML, '音频预览', {
+        dangerouslyUseHTMLString: true,
+        showClose: true,
+        closeOnClickModal: false,
+        closeOnPressEscape: true,
+        callback: () => {
+          // 关闭对话框时释放URL
+          URL.revokeObjectURL(url);
+        }
+      });
+    } else {
+      // 其他类型文件（包括Office文档）直接下载
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // 延迟释放URL
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 1000);
+      
+      // 对于Office文档，提示用户使用本地应用打开
+      if (fileName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
+        ElMessage.info('请使用本地Office应用打开文件');
+      }
+    }
+  } catch (error) {
+    console.error('预览文件失败:', error);
+    if (axios.isAxiosError(error)) {
+      ElMessage.error(`预览失败: ${error.response?.status === 404 ? '文件不存在' : error.message}`);
+    } else {
+      ElMessage.error('预览失败');
+    }
+  }
+};
+
 onMounted(async () => {
   await fetchAssets()
 })
@@ -631,9 +1000,10 @@ onMounted(async () => {
   }
 
   .certification-asset-info,
+  .certification-request-info,
+  .certification-materials,
   .certification-status,
-  .certification-form,
-  .batch-certification-form {
+  .certification-form {
     margin-bottom: 24px;
 
     h3 {
@@ -690,5 +1060,51 @@ onMounted(async () => {
       margin: 0;
     }
   }
+
+  .certification-files {
+    margin-top: 8px;
+    
+    .files-title {
+      color: var(--el-text-color-regular);
+      margin-bottom: 4px;
+    }
+    
+    .el-link {
+      display: inline-flex;
+      align-items: center;
+      margin-right: 12px;
+      
+      .el-icon {
+        margin-right: 4px;
+      }
+    }
+  }
+
+  .certification-materials {
+    .el-table {
+      margin-top: 8px;
+    }
+  }
+}
+
+/* 添加全屏图片预览样式 */
+.full-image-dialog {
+  :deep(.el-dialog__body) {
+    padding: 0;
+  }
+}
+
+.full-image-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  background: #000;
+}
+
+.full-image {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
 }
 </style> 

@@ -11,6 +11,7 @@ import { ElMessage } from 'element-plus';
 import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
 import axios from 'axios';
+import type { Asset, CertificationFile } from '@/types/asset'
 
 interface IPFSCacheEntry {
   cid: string;
@@ -54,6 +55,7 @@ export class DigitalAssetService extends BaseWeb3Service {
     delayMs: 1000
   };
   private uploadProgressCache = new Map<string, number>();
+  private axios: any; // axios 实例
 
   constructor(provider: ethers.BrowserProvider, signer: ethers.Signer) {
     super(provider, signer, web3Config);
@@ -142,6 +144,14 @@ export class DigitalAssetService extends BaseWeb3Service {
 
     // 初始化缓存数据库
     this.initCacheDB();
+
+    this.axios = axios.create({
+      baseURL: import.meta.env.VITE_API_BASE_URL || '',
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
   }
 
   private async initCacheDB() {
@@ -754,7 +764,7 @@ export class DigitalAssetService extends BaseWeb3Service {
     try {
       // 从合约获取基本元数据
       const basicMetadata = await this.contract.getMetadata(tokenId);
-      
+
       // 从IPFS获取完整元数据
       const ipfsData = await this.getAssetContent(basicMetadata.cid);
       const fullMetadata = ipfsData.metadata || {};
@@ -1232,34 +1242,149 @@ export class DigitalAssetService extends BaseWeb3Service {
   public async getAssetCertificationDetails(tokenId: number) {
     await this.ensureConnection();
     
-    // 获取资产基本信息
-    const metadata = await this.getAssetMetadata(tokenId);
-    
-    // 获取认证记录
-    const certifications = await this.getCertifications(tokenId);
-    
-    // 获取待认证者列表
-    const pendingCertifiers = await this.getPendingCertifiers(tokenId);
-    
-    // 获取每个认证者的认证状态
-    const certificationStatus = await Promise.all(
-      pendingCertifiers.map(async (certifier) => ({
-        certifierAddress: certifier,
-        status: await this.hasCertified(tokenId, certifier) ? 'APPROVED' : 'PENDING',
-        certifierName: '', // 这个字段可以从用户系统获取，如果有的话
-        timestamp: certifications.find(c => c.certifier === certifier)?.timestamp,
-        reason: certifications.find(c => c.certifier === certifier)?.comment
-      }))
-    );
+    try {
+      // 从后端获取认证详情
+      const response = await this.axios.get(`/api/certification/status/${tokenId}`);
+      const backendData = response.data.data;
+      console.log("后端数据",backendData)
+      // 获取资产基本信息
+      const metadata = await this.getAssetMetadata(tokenId);
+      
+      // 获取链上认证记录
+      const certifications = await this.getCertifications(tokenId);
+      
+      // 合并后端和链上数据
+      const certificationStatus = backendData.map((status: any) => ({
+        certifierAddress: status.certifierAddress,
+        status: status.status,
+        certifierName: status.certifierName || '',
+        timestamp: status.timestamp || certifications.find(c => c.certifier === status.certifierAddress)?.timestamp,
+        reason: status.reason || certifications.find(c => c.certifier === status.certifierAddress)?.comment,
+        filePaths: status.filePaths || []
+      }));
 
-    return {
-      asset: {
-        tokenId,
-        ...metadata,
-        certifications,
-        certificationStatus
+      return {
+        asset: {
+          tokenId,
+          ...metadata,
+          certifications,
+          certificationStatus
+        }
+      };
+    } catch (error) {
+      console.error('获取认证详情失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 下载认证证明材料
+   * @param filePath 文件路径
+   */
+  async downloadCertificationFile(filePath: string): Promise<CertificationFile> {
+    try {
+      const response = await this.axios.get(`/api/certification/files/${encodeURIComponent(filePath)}`, {
+        responseType: 'blob'
+      });
+      
+      // 从响应头获取文件名
+      const contentDisposition = response.headers['content-disposition'];
+      let fileName = '证明材料';
+      if (contentDisposition) {
+        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+        if (matches != null && matches[1]) {
+          fileName = decodeURIComponent(matches[1].replace(/['"]/g, ''));
+        }
       }
-    };
+      
+      return {
+        file: response.data,
+        fileName
+      };
+    } catch (error) {
+      console.error('下载证明材料失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取待认证请求列表
+   * @param certifierAddress 认证者地址
+   * @param token 认证token
+   */
+  public async getPendingCertificationRequests(certifierAddress: string, token: string) {
+    await this.ensureConnection();
+    
+    try {
+      // 1. 从后端获取待认证请求列表
+      const response = await this.axios.get('/api/certification/pending', {
+        params: { certifierAddress },
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || '获取待认证请求失败');
+      }
+
+      // 2. 获取每个请求的完整信息
+      const pendingRequests = await Promise.all(
+        response.data.data.map(async (request: any) => {
+          try {
+            // 获取资产基本信息（从IPFS）
+            const metadata = await this.getAssetMetadata(request.tokenId);
+            console.log('metadata:', metadata);
+            // 获取链上认证记录
+            const certifications = await this.getCertifications(request.tokenId);
+
+          
+            // 获取链上认证状态
+            const hasCertified = await this.hasCertified(request.tokenId, certifierAddress);
+            
+            // 合并信息
+            const matchedCertification = certifications.find(c => 
+              c.certifier.toLowerCase() === certifierAddress.toLowerCase()
+            );
+
+            return {
+              ...request,
+              // 合并IPFS元数据
+              cid: metadata[0] || '', 
+              version: metadata[3] || 1,
+              isCertified: metadata[4] || false,
+              registrationDate: new Date(Number(metadata[2]) * 1000),
+              fileName: metadata.fileName || '',
+              fileType: metadata.fileType || '',
+              fileSize: metadata.fileSize || 0,
+              category: metadata.category || '',
+              description: metadata.description || '',
+              // 合并链上信息
+              chainStatus: hasCertified ? 'APPROVED' : 'PENDING',
+              certificationTime: matchedCertification?.timestamp || null,
+              chainComment: matchedCertification?.comment || '',
+              // 保持原有信息
+              status: request.status,
+              reason: request.reason || '',
+              filePaths: request.filePaths || []
+            };
+          } catch (error) {
+            console.error(`获取资产 ${request.tokenId} 的详细信息失败:`, error);
+            // 返回原始请求信息
+            return request;
+          }
+        })
+      );
+
+      return {
+        success: true,
+        message: '获取待认证请求成功',
+        data: pendingRequests
+      };
+    } catch (error) {
+      console.error('获取待认证请求失败:', error);
+      throw error;
+    }
   }
 }
 

@@ -8,11 +8,15 @@ import jakarta.persistence.EntityNotFoundException;
 
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -22,6 +26,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import jakarta.persistence.criteria.Predicate;
 import java.util.logging.Logger;
@@ -40,6 +47,9 @@ public class CertificationController {
     private final CertificationRecordRepository certificationRecordRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
+
+    @Value("${app.file.access.secret}")
+    private String fileAccessSecretKey;
     
     @Autowired
     public CertificationController(
@@ -297,8 +307,8 @@ public class CertificationController {
         dto.setRequestTime(request.getCertificationTime());
         dto.setStatus(String.valueOf(request.getStatus()));
         dto.setCertifierAddress(request.getCertifierAddress());
+        dto.setFilePaths(request.getFilePaths());
 
-        
         return dto;
     }
 
@@ -364,7 +374,90 @@ public class CertificationController {
                         pageResult.getTotalElements()
                 ));
     }
-    
+    /**
+     * 获取认证材料文件
+     */
+    @GetMapping("/files/{fileId}")
+    public ResponseEntity<?> getFile(
+            @PathVariable String fileId,
+            @RequestParam long expires,
+            @RequestParam String signature) {
+
+        logger.info("访问文件: " + fileId);
+        logger.info("expires" + expires);
+        logger.info("签名"+signature);
+
+        try {
+            // 1. 验证URL是否过期
+            if (System.currentTimeMillis() > expires) {
+                logger.warning("访问链接已过期: " + fileId);
+                return ResponseEntity.badRequest()
+                        .body(new ApiResponse<>(false, "访问链接已过期", null));
+            }
+
+            // 2. 验证签名
+            String expectedSignature = sha256Hex(fileId + expires + fileAccessSecretKey);
+            if (!signature.equals(expectedSignature)) {
+                logger.warning("无效的访问签名: " + fileId);
+                return ResponseEntity.badRequest()
+                        .body(new ApiResponse<>(false, "无效的访问链接", null));
+            }
+
+            // 3. 获取文件
+            Resource fileResource = fileStorageService.loadFileAsResource(fileId);
+            String contentType = getContentType(fileResource.getFilename());
+
+            // 4. 设置响应头
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileResource.getFilename() + "\"")
+                    .body(fileResource);
+
+        } catch (IOException e) {
+            logger.severe("文件访问失败: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(new ApiResponse<>(false, "文件访问失败: " + e.getMessage(), null));
+        }
+    }
+
+    /**
+     * SHA-256哈希计算
+     */
+    private String sha256Hex(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 算法不可用", e);
+        }
+    }
+
+    /**
+     * 获取文件的Content-Type
+     */
+    private String getContentType(String fileName) {
+        if (fileName == null) return "application/octet-stream";
+        String extension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+        return switch (extension) {
+            case "pdf" -> "application/pdf";
+            case "doc", "docx" -> "application/msword";
+            case "xls", "xlsx" -> "application/vnd.ms-excel";
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "png" -> "image/png";
+            case "gif" -> "image/gif";
+            case "mp3" -> "audio/mpeg";
+            case "wav" -> "audio/wav";
+            case "mp4" -> "video/mp4";
+            default -> "application/octet-stream";
+        };
+    }
     /**
      * 认证状态内部类，用于简单返回资产认证状态
      */

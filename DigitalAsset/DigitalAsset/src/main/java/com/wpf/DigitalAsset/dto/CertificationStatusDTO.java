@@ -2,6 +2,7 @@ package com.wpf.DigitalAsset.dto;
 
 import com.wpf.DigitalAsset.dao.AssetCertificationRequest;
 import lombok.Data;
+import java.util.List;
 
 @Data
 public class CertificationStatusDTO {
@@ -10,4 +11,5 @@ public class CertificationStatusDTO {
     AssetCertificationRequest.RequestStatus status;
     String timestamp;
     String reason;
+    List<String> filePaths;
 }

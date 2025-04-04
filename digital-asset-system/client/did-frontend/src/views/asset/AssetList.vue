@@ -250,7 +250,6 @@
         </div>
         <div v-else>
           <el-empty description="暂无资产" />
-          <el-button type="primary" @click="$router.push('/asset/register')">注册新资产</el-button>
         </div>
       </div>
     </template>

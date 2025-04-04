@@ -4,6 +4,7 @@ import com.wpf.DigitalAsset.dao.*;
 import com.wpf.DigitalAsset.dto.*;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,8 @@ public class CertificationServiceImpl implements CertificationService {
     private AdminRepository adminRepository;
     @Autowired
     private CertificationSignatureRepository certificationSignatureRepository;
+    @Autowired
+    private FileAccessService fileAccessService;
 
     @Override
     @Transactional
@@ -58,6 +61,7 @@ public class CertificationServiceImpl implements CertificationService {
         request.setUpdatedAt(LocalDateTime.now());
         request.setStatus(AssetCertificationRequest.RequestStatus.PENDING);
         request.setCertifierAddress(requestDTO.getCertifierAddress());
+        request.setFilePaths(requestDTO.getFilePaths());
         requestRepository.save(request);
 
         return request;
@@ -162,8 +166,21 @@ public class CertificationServiceImpl implements CertificationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<CertificationRequestDTO> getPendingCertificationRequests(String certifierAddress) {
-        List<AssetCertificationRequest> assetCertificationRequestList = requestRepository.findByCertifierAddressAndStatus(certifierAddress, AssetCertificationRequest.RequestStatus.PENDING);
+        List<AssetCertificationRequest> assetCertificationRequestList = requestRepository.findByCertifierAddressAndStatus(
+            certifierAddress, 
+            AssetCertificationRequest.RequestStatus.PENDING
+        );
+
+        // 确保 filePaths 被加载
+        assetCertificationRequestList.forEach(request -> {
+            logger.info("Request ID: " + request.getId() + ", FilePaths size: " + request.getFilePaths().size());
+            logger.info("FilePaths content: " + request.getFilePaths());
+        });
+
+
+
         return assetCertificationRequestList.stream()
                 .map(this::convertToDTO)
                 .toList();
@@ -233,8 +250,21 @@ public class CertificationServiceImpl implements CertificationService {
         dto.setRequestTime(request.getCreatedAt());
         dto.setStatus(String.valueOf(request.getStatus()));
         dto.setCertifierAddress(request.getCertifierAddress());
-
-
+        dto.setFilePaths(request.getFilePaths());
+        if (request.getFilePaths() != null && !request.getFilePaths().isEmpty()) {
+            List<FileResourceDTO> fileResources = request.getFilePaths().stream()
+                    .map(filePath -> {
+                        FileResourceDTO resource = new FileResourceDTO();
+                        resource.setFileId(fileAccessService.generateFileId(filePath));  // 生成文件ID
+                        resource.setFileName(fileAccessService.getOriginalFileName(filePath));
+                        resource.setContentType(fileAccessService.getContentType(filePath));
+                        resource.setAccessUrl(fileAccessService.generateFileAccessUrl(filePath));  // 生成带签名的访问URL
+                        resource.setExpireTime(System.currentTimeMillis() + 3600000); // 1小时后过期
+                        return resource;
+                    })
+                    .collect(Collectors.toList());
+            dto.setFileResources(fileResources);
+        }
         return dto;
     }
 }

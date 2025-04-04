@@ -1,11 +1,16 @@
 package com.wpf.DigitalAsset.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.annotation.PostConstruct;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -16,15 +21,23 @@ import java.util.UUID;
 @Service
 public class FileStorageService {
 
+    private Path fileStorageLocation;
+    private final FileAccessService fileAccessService;
+
     @Value("${app.certification.upload.dir}")
     private String uploadDir;
+    
+    @Autowired
+    public FileStorageService(FileAccessService fileAccessService) {
+        this.fileAccessService = fileAccessService;
+    }
     
     @PostConstruct
     public void init() {
         try {
-            Path uploadPath = Paths.get(uploadDir);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
+            this.fileStorageLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
+            if (!Files.exists(this.fileStorageLocation)) {
+                Files.createDirectories(this.fileStorageLocation);
             }
         } catch (IOException e) {
             throw new RuntimeException("无法创建上传目录！", e);
@@ -89,6 +102,28 @@ public class FileStorageService {
                 // 记录错误但继续删除其他文件
                 e.printStackTrace();
             }
+        }
+    }
+
+    public Resource loadFileAsResource(String fileId) throws IOException {
+        try {
+            // 解密fileId获取实际文件路径
+            String filePath = fileAccessService.getFilePathFromId(fileId);
+            Path path = Paths.get(filePath).normalize();
+            
+            // 安全检查：确保文件路径在允许的目录内
+            if (!path.toAbsolutePath().startsWith(this.fileStorageLocation.toAbsolutePath())) {
+                throw new FileNotFoundException("无效的文件路径");
+            }
+
+            Resource resource = new UrlResource(path.toUri());
+            if(resource.exists() && resource.isReadable()) {
+                return resource;
+            } else {
+                throw new FileNotFoundException("文件不存在或无法读取: " + fileId);
+            }
+        } catch (MalformedURLException ex) {
+            throw new FileNotFoundException("文件不存在: " + fileId);
         }
     }
 } 

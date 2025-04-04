@@ -34,6 +34,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/api/certification/status/**").permitAll()
+                        .requestMatchers("/api/certification/files/**").permitAll()
                         .requestMatchers("/api/web3/roles/check/**").permitAll()
                         .requestMatchers("/api/web3/roles/user/**").permitAll()
                         .anyRequest().authenticated()

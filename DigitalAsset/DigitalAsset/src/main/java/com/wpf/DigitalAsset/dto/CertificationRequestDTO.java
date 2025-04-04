@@ -22,4 +22,13 @@ public class CertificationRequestDTO {
     private String status;
     private List<MultipartFile> files;
     private List<String> filePaths;
+    private List<FileResourceDTO> fileResources;
+
+    public List<String> getFilePaths() {
+        return filePaths;
+    }
+
+    public void setFilePaths(List<String> filePaths) {
+        this.filePaths = filePaths;
+    }
 }

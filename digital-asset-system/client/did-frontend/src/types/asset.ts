@@ -7,13 +7,12 @@ export interface AssetMetadata {
   [key: string]: any
 }
 
-export interface Asset {
-  tokenId: number
-  owner: string
-  cid: string
-  metadata: AssetMetadata
-  isCertified: boolean
-  pendingCertifiers?: string[]
+export interface FileResource {
+  fileId: string;
+  fileName: string;
+  contentType: string;
+  accessUrl: string;
+  expireTime: number;
 }
 
 export interface CertificationStatus {
@@ -23,6 +22,52 @@ export interface CertificationStatus {
   timestamp?: number
   reason?: string
   isCurrentUser?: boolean
+  filePaths?: string[]
+  fileResources: FileResource[]
+}
+
+export interface CertificationFile {
+  file: Blob
+  fileName: string
+}
+
+export interface CertificationRequestDTO {
+  requestId: number;
+  tokenId: number;
+  reason: string;
+  requester: string;
+  certifierAddress: string;
+  requestTime: string;
+  status: string;
+  fileResources: FileResource[];
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+  category?: string;
+  description?: string;
+  chainStatus?: string;
+  certificationTime?: number | null;
+  chainComment?: string;
+  cid?: string;
+}
+
+export interface Asset {
+  tokenId: string
+  cid: string
+  metadata: {
+    fileName: string
+    fileSize: number
+    fileType: string
+    category?: string
+    description?: string
+    uploadTime?: string
+  }
+  isCertified: boolean
+  registrationDate?: string
+  version?: string
+  pendingCertifiers?: string[]
+  certificationStatus?: CertificationStatus[]
+  certificationRequest?: CertificationRequestDTO
 }
 
 export interface AssetCertificationDetails {
