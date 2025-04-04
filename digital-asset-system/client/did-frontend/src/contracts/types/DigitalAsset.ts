@@ -24,52 +24,29 @@ import type {
 } from "./common";
 
 export declare namespace DigitalAsset {
-  export type CertifierCommentStruct = {
-    certifier: AddressLike;
-    comment: string;
-  };
-
-  export type CertifierCommentStructOutput = [
-    certifier: string,
-    comment: string
-  ] & { certifier: string; comment: string };
-
-  export type CertifierHashCommentStruct = {
-    certifier: AddressLike;
-    commentHash: BytesLike;
-  };
-
-  export type CertifierHashCommentStructOutput = [
-    certifier: string,
-    commentHash: string
-  ] & { certifier: string; commentHash: string };
-
-  export type AssetMetadataStruct = {
+  export type AssetMetadataViewStruct = {
     cid: string;
     contentHash: BytesLike;
-    registrant: AddressLike;
     registrationDate: BigNumberish;
-    isCertified: boolean;
-    encryptedKey: string;
     version: BigNumberish;
+    isCertified: boolean;
+    pendingCertifiers: AddressLike[];
   };
 
-  export type AssetMetadataStructOutput = [
+  export type AssetMetadataViewStructOutput = [
     cid: string,
     contentHash: string,
-    registrant: string,
     registrationDate: bigint,
+    version: bigint,
     isCertified: boolean,
-    encryptedKey: string,
-    version: bigint
+    pendingCertifiers: string[]
   ] & {
     cid: string;
     contentHash: string;
-    registrant: string;
     registrationDate: bigint;
-    isCertified: boolean;
-    encryptedKey: string;
     version: bigint;
+    isCertified: boolean;
+    pendingCertifiers: string[];
   };
 
   export type CertificationStruct = {
@@ -91,36 +68,41 @@ export interface DigitalAssetInterface extends Interface {
       | "approve"
       | "balanceOf"
       | "burn"
+      | "eip712Domain"
       | "getApproved"
       | "isApprovedForAll"
       | "name"
+      | "nonces"
       | "ownerOf"
       | "rbac"
       | "safeTransferFrom(address,address,uint256)"
       | "safeTransferFrom(address,address,uint256,bytes)"
       | "setApprovalForAll"
+      | "supportsInterface"
       | "symbol"
       | "tokenURI"
       | "transferFrom"
       | "registerAsset"
-      | "certifyAssetWithMultipleComments"
+      | "setCertifiers"
       | "certifyAsset"
-      | "certifyAssetWithHashComments"
       | "updateMetadata"
-      | "getAssetMetadata"
-      | "getCertificationHistory"
-      | "verifyIntegrity"
-      | "supportsInterface"
       | "burnAsset"
+      | "getMetadata"
+      | "getCertifications"
+      | "getPendingCertifiers"
+      | "hasCertified"
   ): FunctionFragment;
 
   getEvent(
     nameOrSignatureOrTopic:
+      | "AllCertified"
       | "Approval"
       | "ApprovalForAll"
       | "AssetBurned"
       | "AssetCertified"
       | "AssetRegistered"
+      | "CertifiersSet"
+      | "EIP712DomainChanged"
       | "MetadataUpdated"
       | "Transfer"
   ): EventFragment;
@@ -135,6 +117,10 @@ export interface DigitalAssetInterface extends Interface {
   ): string;
   encodeFunctionData(functionFragment: "burn", values: [BigNumberish]): string;
   encodeFunctionData(
+    functionFragment: "eip712Domain",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "getApproved",
     values: [BigNumberish]
   ): string;
@@ -143,6 +129,7 @@ export interface DigitalAssetInterface extends Interface {
     values: [AddressLike, AddressLike]
   ): string;
   encodeFunctionData(functionFragment: "name", values?: undefined): string;
+  encodeFunctionData(functionFragment: "nonces", values: [AddressLike]): string;
   encodeFunctionData(
     functionFragment: "ownerOf",
     values: [BigNumberish]
@@ -160,6 +147,10 @@ export interface DigitalAssetInterface extends Interface {
     functionFragment: "setApprovalForAll",
     values: [AddressLike, boolean]
   ): string;
+  encodeFunctionData(
+    functionFragment: "supportsInterface",
+    values: [BytesLike]
+  ): string;
   encodeFunctionData(functionFragment: "symbol", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "tokenURI",
@@ -171,52 +162,48 @@ export interface DigitalAssetInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "registerAsset",
-    values: [AddressLike, string, BytesLike, string, BytesLike]
+    values: [AddressLike, string, BytesLike, BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "certifyAssetWithMultipleComments",
-    values: [BigNumberish, DigitalAsset.CertifierCommentStruct[], BytesLike[]]
+    functionFragment: "setCertifiers",
+    values: [BigNumberish, AddressLike[], BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "certifyAsset",
-    values: [BigNumberish, string, BytesLike[]]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "certifyAssetWithHashComments",
-    values: [
-      BigNumberish,
-      DigitalAsset.CertifierHashCommentStruct[],
-      BytesLike[]
-    ]
+    values: [BigNumberish, string, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "updateMetadata",
-    values: [BigNumberish, string, BytesLike, string]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "getAssetMetadata",
-    values: [BigNumberish]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "getCertificationHistory",
-    values: [BigNumberish]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "verifyIntegrity",
-    values: [BigNumberish, BytesLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "supportsInterface",
-    values: [BytesLike]
+    values: [BigNumberish, string, BytesLike, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "burnAsset",
+    values: [BigNumberish, BytesLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getMetadata",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getCertifications",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getPendingCertifiers",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "hasCertified",
+    values: [BigNumberish, AddressLike]
   ): string;
 
   decodeFunctionResult(functionFragment: "approve", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "balanceOf", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "burn", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "eip712Domain",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "getApproved",
     data: BytesLike
@@ -226,6 +213,7 @@ export interface DigitalAssetInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "name", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "nonces", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "ownerOf", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "rbac", data: BytesLike): Result;
   decodeFunctionResult(
@@ -240,6 +228,10 @@ export interface DigitalAssetInterface extends Interface {
     functionFragment: "setApprovalForAll",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "supportsInterface",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "symbol", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "tokenURI", data: BytesLike): Result;
   decodeFunctionResult(
@@ -251,7 +243,7 @@ export interface DigitalAssetInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "certifyAssetWithMultipleComments",
+    functionFragment: "setCertifiers",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -259,30 +251,38 @@ export interface DigitalAssetInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "certifyAssetWithHashComments",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "updateMetadata",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "getAssetMetadata",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "getCertificationHistory",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "verifyIntegrity",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "supportsInterface",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "burnAsset", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "getMetadata",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getCertifications",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getPendingCertifiers",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "hasCertified",
+    data: BytesLike
+  ): Result;
+}
+
+export namespace AllCertifiedEvent {
+  export type InputTuple = [tokenId: BigNumberish];
+  export type OutputTuple = [tokenId: bigint];
+  export interface OutputObject {
+    tokenId: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace ApprovalEvent {
@@ -326,20 +326,10 @@ export namespace ApprovalForAllEvent {
 }
 
 export namespace AssetBurnedEvent {
-  export type InputTuple = [
-    tokenId: BigNumberish,
-    burner: AddressLike,
-    timestamp: BigNumberish
-  ];
-  export type OutputTuple = [
-    tokenId: bigint,
-    burner: string,
-    timestamp: bigint
-  ];
+  export type InputTuple = [tokenId: BigNumberish];
+  export type OutputTuple = [tokenId: bigint];
   export interface OutputObject {
     tokenId: bigint;
-    burner: string;
-    timestamp: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -348,23 +338,11 @@ export namespace AssetBurnedEvent {
 }
 
 export namespace AssetCertifiedEvent {
-  export type InputTuple = [
-    tokenId: BigNumberish,
-    certifier: AddressLike,
-    comment: string,
-    timestamp: BigNumberish
-  ];
-  export type OutputTuple = [
-    tokenId: bigint,
-    certifier: string,
-    comment: string,
-    timestamp: bigint
-  ];
+  export type InputTuple = [tokenId: BigNumberish, certifier: AddressLike];
+  export type OutputTuple = [tokenId: bigint, certifier: string];
   export interface OutputObject {
     tokenId: bigint;
     certifier: string;
-    comment: string;
-    timestamp: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -376,20 +354,13 @@ export namespace AssetRegisteredEvent {
   export type InputTuple = [
     tokenId: BigNumberish,
     registrant: AddressLike,
-    cid: string,
-    timestamp: BigNumberish
+    cid: string
   ];
-  export type OutputTuple = [
-    tokenId: bigint,
-    registrant: string,
-    cid: string,
-    timestamp: bigint
-  ];
+  export type OutputTuple = [tokenId: bigint, registrant: string, cid: string];
   export interface OutputObject {
     tokenId: bigint;
     registrant: string;
     cid: string;
-    timestamp: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -397,24 +368,35 @@ export namespace AssetRegisteredEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
+export namespace CertifiersSetEvent {
+  export type InputTuple = [tokenId: BigNumberish, certifiers: AddressLike[]];
+  export type OutputTuple = [tokenId: bigint, certifiers: string[]];
+  export interface OutputObject {
+    tokenId: bigint;
+    certifiers: string[];
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace EIP712DomainChangedEvent {
+  export type InputTuple = [];
+  export type OutputTuple = [];
+  export interface OutputObject {}
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
 export namespace MetadataUpdatedEvent {
-  export type InputTuple = [
-    tokenId: BigNumberish,
-    newCid: string,
-    newVersion: BigNumberish,
-    timestamp: BigNumberish
-  ];
-  export type OutputTuple = [
-    tokenId: bigint,
-    newCid: string,
-    newVersion: bigint,
-    timestamp: bigint
-  ];
+  export type InputTuple = [tokenId: BigNumberish, newCid: string];
+  export type OutputTuple = [tokenId: bigint, newCid: string];
   export interface OutputObject {
     tokenId: bigint;
     newCid: string;
-    newVersion: bigint;
-    timestamp: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -503,6 +485,25 @@ export interface DigitalAsset extends BaseContract {
   burn: TypedContractMethod<[tokenId: BigNumberish], [void], "nonpayable">;
 
   /**
+   * See {EIP-5267}. _Available since v4.9._
+   */
+  eip712Domain: TypedContractMethod<
+    [],
+    [
+      [string, string, string, bigint, string, string, bigint[]] & {
+        fields: string;
+        name: string;
+        version: string;
+        chainId: bigint;
+        verifyingContract: string;
+        salt: string;
+        extensions: bigint[];
+      }
+    ],
+    "view"
+  >;
+
+  /**
    * See {IERC721-getApproved}.
    */
   getApproved: TypedContractMethod<[tokenId: BigNumberish], [string], "view">;
@@ -520,6 +521,8 @@ export interface DigitalAsset extends BaseContract {
    * See {IERC721Metadata-name}.
    */
   name: TypedContractMethod<[], [string], "view">;
+
+  nonces: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
 
   /**
    * See {IERC721-ownerOf}.
@@ -561,6 +564,15 @@ export interface DigitalAsset extends BaseContract {
   >;
 
   /**
+   * See {IERC165-supportsInterface}.
+   */
+  supportsInterface: TypedContractMethod<
+    [interfaceId: BytesLike],
+    [boolean],
+    "view"
+  >;
+
+  /**
    * See {IERC721Metadata-symbol}.
    */
   symbol: TypedContractMethod<[], [string], "view">;
@@ -579,116 +591,69 @@ export interface DigitalAsset extends BaseContract {
     "nonpayable"
   >;
 
-  /**
-   * 注册新资产
-   * @param cid IPFS内容标识符
-   * @param contentHash 内容哈希
-   * @param encryptedKey 加密密钥
-   * @param signature 签名
-   * @param to 接收者地址
-   */
   registerAsset: TypedContractMethod<
     [
       to: AddressLike,
       cid: string,
       contentHash: BytesLike,
-      encryptedKey: string,
       signature: BytesLike
     ],
     [bigint],
     "nonpayable"
   >;
 
-  certifyAssetWithMultipleComments: TypedContractMethod<
-    [
-      tokenId: BigNumberish,
-      certifierComments: DigitalAsset.CertifierCommentStruct[],
-      signatures: BytesLike[]
-    ],
+  setCertifiers: TypedContractMethod<
+    [tokenId: BigNumberish, certifiers: AddressLike[], signature: BytesLike],
     [void],
     "nonpayable"
   >;
 
-  /**
-   * 认证资产 - 原始方法，保留向后兼容性
-   * @param comment 认证评论
-   * @param signatures 认证人签名数组
-   * @param tokenId 资产 ID
-   */
   certifyAsset: TypedContractMethod<
-    [tokenId: BigNumberish, comment: string, signatures: BytesLike[]],
+    [tokenId: BigNumberish, comment: string, signature: BytesLike],
     [void],
     "nonpayable"
   >;
 
-  certifyAssetWithHashComments: TypedContractMethod<
+  updateMetadata: TypedContractMethod<
     [
       tokenId: BigNumberish,
-      certifierHashComments: DigitalAsset.CertifierHashCommentStruct[],
-      signatures: BytesLike[]
+      newCid: string,
+      newHash: BytesLike,
+      signature: BytesLike
     ],
     [void],
     "nonpayable"
   >;
 
-  /**
-   * 更新资产元数据
-   * @param newCid 新的 CID
-   * @param newHash 新的内容哈希
-   * @param newKey 新的加密密钥
-   * @param tokenId 资产 ID
-   */
-  updateMetadata: TypedContractMethod<
-    [tokenId: BigNumberish, newCid: string, newHash: BytesLike, newKey: string],
+  burnAsset: TypedContractMethod<
+    [tokenId: BigNumberish, signature: BytesLike],
     [void],
     "nonpayable"
   >;
 
-  /**
-   * 获取资产元数据
-   * @param tokenId 资产 ID
-   */
-  getAssetMetadata: TypedContractMethod<
+  getMetadata: TypedContractMethod<
     [tokenId: BigNumberish],
-    [DigitalAsset.AssetMetadataStructOutput],
+    [DigitalAsset.AssetMetadataViewStructOutput],
     "view"
   >;
 
-  /**
-   * 获取认证历史
-   * @param tokenId 资产 ID
-   */
-  getCertificationHistory: TypedContractMethod<
+  getCertifications: TypedContractMethod<
     [tokenId: BigNumberish],
     [DigitalAsset.CertificationStructOutput[]],
     "view"
   >;
 
-  /**
-   * 验证资产完整性
-   * @param hash 内容哈希
-   * @param tokenId 资产 ID
-   */
-  verifyIntegrity: TypedContractMethod<
-    [tokenId: BigNumberish, hash: BytesLike],
-    [boolean],
+  getPendingCertifiers: TypedContractMethod<
+    [tokenId: BigNumberish],
+    [string[]],
     "view"
   >;
 
-  /**
-   * 支持接口实现
-   */
-  supportsInterface: TypedContractMethod<
-    [interfaceId: BytesLike],
+  hasCertified: TypedContractMethod<
+    [tokenId: BigNumberish, certifier: AddressLike],
     [boolean],
     "view"
   >;
-
-  /**
-   * 销毁资产 - 仅限资产所有者或已授权地址
-   * @param tokenId 要销毁的资产ID
-   */
-  burnAsset: TypedContractMethod<[tokenId: BigNumberish], [void], "nonpayable">;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
@@ -708,6 +673,23 @@ export interface DigitalAsset extends BaseContract {
     nameOrSignature: "burn"
   ): TypedContractMethod<[tokenId: BigNumberish], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "eip712Domain"
+  ): TypedContractMethod<
+    [],
+    [
+      [string, string, string, bigint, string, string, bigint[]] & {
+        fields: string;
+        name: string;
+        version: string;
+        chainId: bigint;
+        verifyingContract: string;
+        salt: string;
+        extensions: bigint[];
+      }
+    ],
+    "view"
+  >;
+  getFunction(
     nameOrSignature: "getApproved"
   ): TypedContractMethod<[tokenId: BigNumberish], [string], "view">;
   getFunction(
@@ -720,6 +702,9 @@ export interface DigitalAsset extends BaseContract {
   getFunction(
     nameOrSignature: "name"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "nonces"
+  ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
   getFunction(
     nameOrSignature: "ownerOf"
   ): TypedContractMethod<[tokenId: BigNumberish], [string], "view">;
@@ -753,6 +738,9 @@ export interface DigitalAsset extends BaseContract {
     "nonpayable"
   >;
   getFunction(
+    nameOrSignature: "supportsInterface"
+  ): TypedContractMethod<[interfaceId: BytesLike], [boolean], "view">;
+  getFunction(
     nameOrSignature: "symbol"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
@@ -772,76 +760,76 @@ export interface DigitalAsset extends BaseContract {
       to: AddressLike,
       cid: string,
       contentHash: BytesLike,
-      encryptedKey: string,
       signature: BytesLike
     ],
     [bigint],
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "certifyAssetWithMultipleComments"
+    nameOrSignature: "setCertifiers"
   ): TypedContractMethod<
-    [
-      tokenId: BigNumberish,
-      certifierComments: DigitalAsset.CertifierCommentStruct[],
-      signatures: BytesLike[]
-    ],
+    [tokenId: BigNumberish, certifiers: AddressLike[], signature: BytesLike],
     [void],
     "nonpayable"
   >;
   getFunction(
     nameOrSignature: "certifyAsset"
   ): TypedContractMethod<
-    [tokenId: BigNumberish, comment: string, signatures: BytesLike[]],
-    [void],
-    "nonpayable"
-  >;
-  getFunction(
-    nameOrSignature: "certifyAssetWithHashComments"
-  ): TypedContractMethod<
-    [
-      tokenId: BigNumberish,
-      certifierHashComments: DigitalAsset.CertifierHashCommentStruct[],
-      signatures: BytesLike[]
-    ],
+    [tokenId: BigNumberish, comment: string, signature: BytesLike],
     [void],
     "nonpayable"
   >;
   getFunction(
     nameOrSignature: "updateMetadata"
   ): TypedContractMethod<
-    [tokenId: BigNumberish, newCid: string, newHash: BytesLike, newKey: string],
+    [
+      tokenId: BigNumberish,
+      newCid: string,
+      newHash: BytesLike,
+      signature: BytesLike
+    ],
     [void],
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "getAssetMetadata"
+    nameOrSignature: "burnAsset"
+  ): TypedContractMethod<
+    [tokenId: BigNumberish, signature: BytesLike],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "getMetadata"
   ): TypedContractMethod<
     [tokenId: BigNumberish],
-    [DigitalAsset.AssetMetadataStructOutput],
+    [DigitalAsset.AssetMetadataViewStructOutput],
     "view"
   >;
   getFunction(
-    nameOrSignature: "getCertificationHistory"
+    nameOrSignature: "getCertifications"
   ): TypedContractMethod<
     [tokenId: BigNumberish],
     [DigitalAsset.CertificationStructOutput[]],
     "view"
   >;
   getFunction(
-    nameOrSignature: "verifyIntegrity"
+    nameOrSignature: "getPendingCertifiers"
+  ): TypedContractMethod<[tokenId: BigNumberish], [string[]], "view">;
+  getFunction(
+    nameOrSignature: "hasCertified"
   ): TypedContractMethod<
-    [tokenId: BigNumberish, hash: BytesLike],
+    [tokenId: BigNumberish, certifier: AddressLike],
     [boolean],
     "view"
   >;
-  getFunction(
-    nameOrSignature: "supportsInterface"
-  ): TypedContractMethod<[interfaceId: BytesLike], [boolean], "view">;
-  getFunction(
-    nameOrSignature: "burnAsset"
-  ): TypedContractMethod<[tokenId: BigNumberish], [void], "nonpayable">;
 
+  getEvent(
+    key: "AllCertified"
+  ): TypedContractEvent<
+    AllCertifiedEvent.InputTuple,
+    AllCertifiedEvent.OutputTuple,
+    AllCertifiedEvent.OutputObject
+  >;
   getEvent(
     key: "Approval"
   ): TypedContractEvent<
@@ -878,6 +866,20 @@ export interface DigitalAsset extends BaseContract {
     AssetRegisteredEvent.OutputObject
   >;
   getEvent(
+    key: "CertifiersSet"
+  ): TypedContractEvent<
+    CertifiersSetEvent.InputTuple,
+    CertifiersSetEvent.OutputTuple,
+    CertifiersSetEvent.OutputObject
+  >;
+  getEvent(
+    key: "EIP712DomainChanged"
+  ): TypedContractEvent<
+    EIP712DomainChangedEvent.InputTuple,
+    EIP712DomainChangedEvent.OutputTuple,
+    EIP712DomainChangedEvent.OutputObject
+  >;
+  getEvent(
     key: "MetadataUpdated"
   ): TypedContractEvent<
     MetadataUpdatedEvent.InputTuple,
@@ -893,6 +895,17 @@ export interface DigitalAsset extends BaseContract {
   >;
 
   filters: {
+    "AllCertified(uint256)": TypedContractEvent<
+      AllCertifiedEvent.InputTuple,
+      AllCertifiedEvent.OutputTuple,
+      AllCertifiedEvent.OutputObject
+    >;
+    AllCertified: TypedContractEvent<
+      AllCertifiedEvent.InputTuple,
+      AllCertifiedEvent.OutputTuple,
+      AllCertifiedEvent.OutputObject
+    >;
+
     "Approval(address,address,uint256)": TypedContractEvent<
       ApprovalEvent.InputTuple,
       ApprovalEvent.OutputTuple,
@@ -915,7 +928,7 @@ export interface DigitalAsset extends BaseContract {
       ApprovalForAllEvent.OutputObject
     >;
 
-    "AssetBurned(uint256,address,uint256)": TypedContractEvent<
+    "AssetBurned(uint256)": TypedContractEvent<
       AssetBurnedEvent.InputTuple,
       AssetBurnedEvent.OutputTuple,
       AssetBurnedEvent.OutputObject
@@ -926,7 +939,7 @@ export interface DigitalAsset extends BaseContract {
       AssetBurnedEvent.OutputObject
     >;
 
-    "AssetCertified(uint256,address,string,uint256)": TypedContractEvent<
+    "AssetCertified(uint256,address)": TypedContractEvent<
       AssetCertifiedEvent.InputTuple,
       AssetCertifiedEvent.OutputTuple,
       AssetCertifiedEvent.OutputObject
@@ -937,7 +950,7 @@ export interface DigitalAsset extends BaseContract {
       AssetCertifiedEvent.OutputObject
     >;
 
-    "AssetRegistered(uint256,address,string,uint256)": TypedContractEvent<
+    "AssetRegistered(uint256,address,string)": TypedContractEvent<
       AssetRegisteredEvent.InputTuple,
       AssetRegisteredEvent.OutputTuple,
       AssetRegisteredEvent.OutputObject
@@ -948,7 +961,29 @@ export interface DigitalAsset extends BaseContract {
       AssetRegisteredEvent.OutputObject
     >;
 
-    "MetadataUpdated(uint256,string,uint256,uint256)": TypedContractEvent<
+    "CertifiersSet(uint256,address[])": TypedContractEvent<
+      CertifiersSetEvent.InputTuple,
+      CertifiersSetEvent.OutputTuple,
+      CertifiersSetEvent.OutputObject
+    >;
+    CertifiersSet: TypedContractEvent<
+      CertifiersSetEvent.InputTuple,
+      CertifiersSetEvent.OutputTuple,
+      CertifiersSetEvent.OutputObject
+    >;
+
+    "EIP712DomainChanged()": TypedContractEvent<
+      EIP712DomainChangedEvent.InputTuple,
+      EIP712DomainChangedEvent.OutputTuple,
+      EIP712DomainChangedEvent.OutputObject
+    >;
+    EIP712DomainChanged: TypedContractEvent<
+      EIP712DomainChangedEvent.InputTuple,
+      EIP712DomainChangedEvent.OutputTuple,
+      EIP712DomainChangedEvent.OutputObject
+    >;
+
+    "MetadataUpdated(uint256,string)": TypedContractEvent<
       MetadataUpdatedEvent.InputTuple,
       MetadataUpdatedEvent.OutputTuple,
       MetadataUpdatedEvent.OutputObject

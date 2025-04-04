@@ -18,7 +18,11 @@
         <p class="subtitle typewriter">打造安全、透明、高效的数字资产管理平台</p>
       </div>
       <div class="hero-cta">
-        <router-link to="/access" class="cta-button">
+        <router-link v-if="userStore.profile?.role === 'user'" to="/access" class="cta-button">
+          <span class="button-text">开始使用</span>
+          <span class="button-icon">→</span>
+        </router-link>
+        <router-link v-else to="/verify" class="cta-button">
           <span class="button-text">开始使用</span>
           <span class="button-icon">→</span>
         </router-link>
@@ -115,6 +119,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import CountUp from 'vue-countup-v3'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 // 3D立方体旋转控制
 const cubeRotation = ref(0)
@@ -157,16 +164,17 @@ const stats = ref([
 </script>
 
 <style scoped>
+/* 基础样式 - 同时适配屏幕和打印 */
 .digital-asset-system {
   position: relative;
   min-height: 100vh;
-  background: #0a192f;
-  color: #e6f1ff;
+  background: #f8f9fa; /* 浅灰色背景 */
+  color: #2d3436;      /* 深灰色文字 */
   overflow: hidden;
   padding-bottom: 4rem;
 }
 
-/* 二进制背景 */
+/* 动态二进制背景（打印时隐藏） */
 .binary-background {
   position: absolute;
   top: 0;
@@ -182,7 +190,7 @@ const stats = ref([
   position: absolute;
   font-family: monospace;
   font-size: 1.2rem;
-  color: #64ffda;
+  color: rgba(0, 0, 0, 0.08); /* 极浅黑色 */
   animation: fadeInOut 8s infinite;
 }
 
@@ -208,14 +216,16 @@ const stats = ref([
   margin-bottom: 2rem;
 }
 
+/* 故障文字效果（打印时转为普通文字） */
 .glitch-text {
   font-size: 3.5rem;
   font-weight: 800;
-  color: #ccd6f6;
+  color: #2d3436;
   position: relative;
-  text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75),
-              -0.025em -0.05em 0 rgba(0, 255, 0, 0.75),
-              0.025em 0.05em 0 rgba(0, 0, 255, 0.75);
+  text-shadow: 
+    0.05em 0 0 rgba(0, 0, 0, 0.15),
+    -0.025em -0.05em 0 rgba(0, 0, 0, 0.15),
+    0.025em 0.05em 0 rgba(0, 0, 0, 0.15);
   animation: glitch 2s infinite;
 }
 
@@ -231,75 +241,28 @@ const stats = ref([
 
 .glitch-text::before {
   left: 2px;
-  text-shadow: -2px 0 #ff00c1;
+  text-shadow: -2px 0 rgba(0, 0, 0, 0.2);
   clip: rect(44px, 450px, 56px, 0);
   animation: glitch-anim 5s infinite linear alternate-reverse;
 }
 
 .glitch-text::after {
   left: -2px;
-  text-shadow: -2px 0 #00fff9, 2px 2px #ff00c1;
+  text-shadow: -2px 0 rgba(0, 0, 0, 0.2), 2px 2px rgba(0, 0, 0, 0.2);
   animation: glitch-anim2 1s infinite linear alternate-reverse;
 }
 
-@keyframes glitch-anim {
-  0% { clip: rect(31px, 9999px, 94px, 0); }
-  5% { clip: rect(70px, 9999px, 71px, 0); }
-  10% { clip: rect(29px, 9999px, 43px, 0); }
-  15% { clip: rect(15px, 9999px, 13px, 0); }
-  20% { clip: rect(76px, 9999px, 91px, 0); }
-  25% { clip: rect(91px, 9999px, 43px, 0); }
-  30% { clip: rect(85px, 9999px, 41px, 0); }
-  35% { clip: rect(93px, 9999px, 90px, 0); }
-  40% { clip: rect(75px, 9999px, 30px, 0); }
-  45% { clip: rect(48px, 9999px, 29px, 0); }
-  50% { clip: rect(83px, 9999px, 76px, 0); }
-  55% { clip: rect(66px, 9999px, 78px, 0); }
-  60% { clip: rect(14px, 9999px, 97px, 0); }
-  65% { clip: rect(70px, 9999px, 46px, 0); }
-  70% { clip: rect(49px, 9999px, 92px, 0); }
-  75% { clip: rect(66px, 9999px, 65px, 0); }
-  80% { clip: rect(44px, 9999px, 25px, 0); }
-  85% { clip: rect(23px, 9999px, 48px, 0); }
-  90% { clip: rect(82px, 9999px, 64px, 0); }
-  95% { clip: rect(38px, 9999px, 18px, 0); }
-  100% { clip: rect(65px, 9999px, 89px, 0); }
-}
-
-@keyframes glitch-anim2 {
-  0% { clip: rect(65px, 9999px, 65px, 0); }
-  5% { clip: rect(16px, 9999px, 98px, 0); }
-  10% { clip: rect(51px, 9999px, 35px, 0); }
-  15% { clip: rect(98px, 9999px, 95px, 0); }
-  20% { clip: rect(51px, 9999px, 50px, 0); }
-  25% { clip: rect(38px, 9999px, 56px, 0); }
-  30% { clip: rect(72px, 9999px, 47px, 0); }
-  35% { clip: rect(27px, 9999px, 26px, 0); }
-  40% { clip: rect(65px, 9999px, 49px, 0); }
-  45% { clip: rect(23px, 9999px, 17px, 0); }
-  50% { clip: rect(58px, 9999px, 74px, 0); }
-  55% { clip: rect(34px, 9999px, 35px, 0); }
-  60% { clip: rect(57px, 9999px, 88px, 0); }
-  65% { clip: rect(30px, 9999px, 16px, 0); }
-  70% { clip: rect(84px, 9999px, 74px, 0); }
-  75% { clip: rect(69px, 9999px, 98px, 0); }
-  80% { clip: rect(36px, 9999px, 17px, 0); }
-  85% { clip: rect(82px, 9999px, 95px, 0); }
-  90% { clip: rect(61px, 9999px, 90px, 0); }
-  95% { clip: rect(42px, 9999px, 23px, 0); }
-  100% { clip: rect(12px, 9999px, 46px, 0); }
-}
-
+/* 打字机效果副标题 */
 .hero-subtitle {
   margin-bottom: 3rem;
 }
 
 .subtitle {
   font-size: 1.5rem;
-  color: #8892b0;
+  color: #636e72; /* 中灰色 */
   overflow: hidden;
   white-space: nowrap;
-  border-right: 0.15em solid #64ffda;
+  border-right: 0.15em solid #636e72;
   margin: 0 auto;
   letter-spacing: 0.15em;
   animation: typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite;
@@ -312,9 +275,10 @@ const stats = ref([
 
 @keyframes blink-caret {
   from, to { border-color: transparent }
-  50% { border-color: #64ffda }
+  50% { border-color: #636e72 }
 }
 
+/* CTA按钮 */
 .hero-cta {
   margin-top: 2rem;
 }
@@ -322,8 +286,8 @@ const stats = ref([
 .cta-button {
   display: inline-block;
   background-color: transparent;
-  color: #64ffda;
-  border: 1px solid #64ffda;
+  color: #2d3436;
+  border: 1px solid #2d3436;
   border-radius: 4px;
   padding: 1rem 2.5rem;
   font-size: 1.25rem;
@@ -340,28 +304,14 @@ const stats = ref([
   left: -100%;
   width: 100%;
   height: 100%;
-  background: rgba(100, 255, 218, 0.1);
+  background: rgba(45, 52, 54, 0.1);
   transition: all 0.5s ease;
   z-index: -1;
 }
 
 .cta-button:hover {
-  color: #0a192f;
-  background-color: #64ffda;
-}
-
-.cta-button:hover::before {
-  left: 0;
-}
-
-.button-text, .button-icon {
-  position: relative;
-  z-index: 1;
-  transition: all 0.3s ease;
-}
-
-.cta-button:hover .button-icon {
-  transform: translateX(5px);
+  color: #f8f9fa;
+  background-color: #2d3436;
 }
 
 /* 3D立方体特性 */
@@ -375,7 +325,7 @@ const stats = ref([
   text-align: center;
   font-size: 2.5rem;
   margin-bottom: 3rem;
-  color: #ccd6f6;
+  color: #2d3436;
   position: relative;
 }
 
@@ -387,7 +337,7 @@ const stats = ref([
   transform: translateX(-50%);
   width: 80px;
   height: 4px;
-  background: linear-gradient(90deg, transparent, #64ffda, transparent);
+  background: linear-gradient(90deg, transparent, #636e72, transparent);
 }
 
 .cube-container {
@@ -413,66 +363,39 @@ const stats = ref([
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(10, 25, 47, 0.8);
-  border: 2px solid #64ffda;
+  background: rgba(248, 249, 250, 0.9);
+  border: 2px solid #636e72;
   border-radius: 10px;
-  box-shadow: 0 0 20px rgba(100, 255, 218, 0.3);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
   backface-visibility: visible;
   text-align: center;
   padding: 20px;
 }
 
+/* 立方体各面定位 */
 .cube-face.front { transform: translateZ(150px); }
 .cube-face.back { transform: rotateY(180deg) translateZ(150px); }
 .cube-face.right { transform: rotateY(90deg) translateZ(150px); }
 .cube-face.left { transform: rotateY(-90deg) translateZ(150px); }
 
-.feature-content {
-  max-width: 90%;
-}
-
 .feature-icon {
   font-size: 3rem;
-  color: #64ffda;
+  color: #636e72;
   margin-bottom: 1rem;
 }
 
 .feature-content h3 {
   font-size: 1.5rem;
   margin-bottom: 1rem;
-  color: #e6f1ff;
+  color: #2d3436;
 }
 
 .feature-content p {
   font-size: 1rem;
-  color: #8892b0;
+  color: #636e72;
 }
 
-.cube-controls {
-  margin-top: 2rem;
-  display: flex;
-  justify-content: center;
-  gap: 2rem;
-  position: relative;
-  z-index: 2;
-}
-
-.cube-control-button {
-  background: transparent;
-  color: #64ffda;
-  border: 1px solid #64ffda;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  z-index: 2;
-}
-
-.cube-control-button:hover {
-  background: rgba(100, 255, 218, 0.1);
-}
-
-/* 统计数据 */
+/* 统计卡片 */
 .stats-section {
   padding: 6rem 2rem;
   position: relative;
@@ -505,13 +428,13 @@ const stats = ref([
 
 .stat-circle-bg {
   fill: none;
-  stroke: rgba(100, 255, 218, 0.1);
+  stroke: rgba(99, 110, 114, 0.1);
   stroke-width: 8;
 }
 
 .stat-circle {
   fill: none;
-  stroke: #64ffda;
+  stroke: #636e72;
   stroke-width: 8;
   stroke-dasharray: 283;
   stroke-linecap: round;
@@ -526,24 +449,10 @@ const stats = ref([
 .stat-number {
   font-size: 2.5rem;
   font-weight: 700;
-  color: #e6f1ff;
-  display: flex;
-  justify-content: center;
-  gap: 5px;
+  color: #2d3436;
 }
 
-.stat-number span {
-  font-size: 1.5rem;
-  align-self: flex-start;
-}
-
-.stat-label {
-  font-size: 1rem;
-  color: #8892b0;
-  margin-top: 0.5rem;
-}
-
-/* 区块链可视化 */
+/* 区块链区块 */
 .blockchain-visualization {
   padding: 6rem 2rem;
   position: relative;
@@ -557,130 +466,104 @@ const stats = ref([
   gap: 1.5rem;
   margin: 0 auto;
   max-width: 1200px;
-  justify-content: center;
-  flex-wrap: wrap;
 }
 
 .block {
   min-width: 250px;
-  background: rgba(10, 25, 47, 0.8);
-  border: 1px solid #233554;
+  background: rgba(248, 249, 250, 0.9);
+  border: 1px solid #adb5bd;
   border-radius: 8px;
   padding: 1rem;
   transition: all 0.3s ease;
-  transform-origin: center;
-  position: relative;
-}
-
-.block::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(45deg, #64ffda, #0a192f);
-  z-index: -1;
-  border-radius: 8px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.block::after {
-  content: '';
-  position: absolute;
-  top: -5px;
-  left: -5px;
-  right: -5px;
-  bottom: -5px;
-  background: linear-gradient(45deg, #64ffda, #0a192f);
-  z-index: -2;
-  border-radius: 12px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  filter: blur(10px);
 }
 
 .active-block {
-  transform: scale(1.05) translateY(-10px);
-  box-shadow: 0 10px 30px rgba(100, 255, 218, 0.2);
-  border-color: #64ffda;
-}
-
-.active-block::before,
-.active-block::after {
-  opacity: 0.3;
+  transform: scale(1.05);
+  border-color: #2d3436;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
 .block-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #233554;
-  padding-bottom: 0.5rem;
-  margin-bottom: 1rem;
+  border-bottom: 1px solid #dee2e6;
 }
 
 .block-number {
-  font-weight: bold;
-  color: #64ffda;
-}
-
-.block-hash {
-  font-family: monospace;
-  font-size: 0.8rem;
-  color: #8892b0;
-}
-
-.block-content {
-  min-height: 100px;
-}
-
-.transaction {
-  padding: 0.5rem;
-  border-bottom: 1px dashed #233554;
-  font-family: monospace;
-  font-size: 0.8rem;
-  color: #ccd6f6;
-}
-
-.block-footer {
-  margin-top: 1rem;
-  text-align: right;
-  font-size: 0.8rem;
-  color: #8892b0;
+  color: #2d3436;
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
+  .glitch-text { font-size: 2rem; }
+  .subtitle { font-size: 1.2rem; }
+  .cube-container { width: 250px; height: 250px; }
+}
+
+/* 打印专用样式 */
+@media print {
+  .digital-asset-system {
+    background: #fff !important;
+    color: #000 !important;
+    padding: 1rem !important;
+  }
+
+  /* 隐藏非必要元素 */
+  .binary-background,
+  .cube-controls,
+  .cta-button::before,
+  .stat-svg,
+  .feature-icon {
+    display: none !important;
+  }
+
+  /* 文字优化 */
   .glitch-text {
-    font-size: 2rem;
+    text-shadow: none !important;
+    animation: none !important;
+    color: #000 !important;
   }
-  
-  .subtitle {
-    font-size: 1.2rem;
+
+  /* 布局调整 */
+  .cube {
+    transform: none !important;
+    position: static !important;
   }
-  
-  .cube-container {
-    width: 250px;
-    height: 250px;
+
+  .cube-face {
+    position: static !important;
+    transform: none !important;
+    border: 1px solid #000 !important;
+    margin: 1rem 0;
+    page-break-inside: avoid;
   }
-  
-  .stats-container {
-    gap: 2rem;
-  }
-  
+
+  /* 数据可视化优化 */
   .stat-card {
-    width: 150px;
-    height: 150px;
+    width: auto !important;
+    height: auto !important;
+    flex-direction: row;
+    gap: 1rem;
   }
-  
-  .stat-number {
-    font-size: 1.8rem;
+
+  .stat-content {
+    text-align: left;
   }
-  
+
+  /* 区块布局优化 */
+  .blocks-container {
+    flex-direction: column;
+  }
+
   .block {
-    min-width: 200px;
+    min-width: auto !important;
+    margin-bottom: 1rem;
+    break-inside: avoid;
+  }
+
+  /* 按钮优化 */
+  .cta-button {
+    border: 2px solid #000 !important;
+    color: #000 !important;
+    background: transparent !important;
   }
 }
 </style>

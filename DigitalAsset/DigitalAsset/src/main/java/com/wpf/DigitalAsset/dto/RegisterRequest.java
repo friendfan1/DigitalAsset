@@ -5,6 +5,7 @@ public class RegisterRequest {
     private String password;
     private String email;
     private String verificationCode;
+    private String publicKey;
 
     public String getUsername() {
         return username;
@@ -36,5 +37,13 @@ public class RegisterRequest {
 
     public void setVerificationCode(String verificationCode) {
         this.verificationCode = verificationCode;
+    }
+
+    public String getPublicKey() {
+        return publicKey;
+    }
+
+    public void setPublicKey(String publicKey) {
+        this.publicKey = publicKey;
     }
 }

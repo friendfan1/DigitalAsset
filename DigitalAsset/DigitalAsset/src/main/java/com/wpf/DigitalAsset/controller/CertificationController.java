@@ -3,6 +3,7 @@ package com.wpf.DigitalAsset.controller;
 import com.wpf.DigitalAsset.dao.*;
 import com.wpf.DigitalAsset.dto.*;
 import com.wpf.DigitalAsset.service.CertificationService;
+import com.wpf.DigitalAsset.service.FileStorageService;
 import jakarta.persistence.EntityNotFoundException;
 
 import jakarta.validation.Valid;
@@ -19,10 +20,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 import jakarta.persistence.criteria.Predicate;
 import java.util.logging.Logger;
+import java.io.IOException;
 
 /**
  * 资产认证控制器
@@ -33,12 +36,22 @@ public class CertificationController {
     
     private static final Logger logger = Logger.getLogger(CertificationController.class.getName());
     
+    private final CertificationService certificationService;
+    private final CertificationRecordRepository certificationRecordRepository;
+    private final UserRepository userRepository;
+    private final FileStorageService fileStorageService;
+    
     @Autowired
-    private CertificationService certificationService;
-    @Autowired
-    private CertificationRecordRepository certificationRecordRepository;
-    @Autowired
-    private UserRepository userRepository;
+    public CertificationController(
+            CertificationService certificationService,
+            CertificationRecordRepository certificationRecordRepository,
+            UserRepository userRepository,
+            FileStorageService fileStorageService) {
+        this.certificationService = certificationService;
+        this.certificationRecordRepository = certificationRecordRepository;
+        this.userRepository = userRepository;
+        this.fileStorageService = fileStorageService;
+    }
     
     /**
      * 获取所有认证者列表
@@ -56,19 +69,76 @@ public class CertificationController {
     }
     
     /**
-     * 提交认证请求
+     * 提交认证请求 - 修改为支持文件上传
      */
     @PostMapping("/request")
-    public ResponseEntity<ApiResponse<Long>> submitRequest(@RequestBody CertificationRequestDTO requestDTO) {
-        logger.info("地址："+requestDTO.getCertifierAddress());
+    public ResponseEntity<ApiResponse<Long>> submitRequest(
+            @RequestParam("tokenId") Long tokenId,
+            @RequestParam("reason") String reason,
+            @RequestParam("requester") String requester,
+            @RequestParam("certifierAddress") String certifierAddress,
+            @RequestParam(value = "files", required = false) List<MultipartFile> files) {
+        
+        logger.info("开始处理认证请求 - 认证者地址：" + certifierAddress);
+        List<String> storedFilePaths = new ArrayList<>();
+        
         try {
+            // 1. 验证文件
+            if (files != null && !files.isEmpty()) {
+                for (MultipartFile file : files) {
+                    if (file == null || file.isEmpty()) {
+                        continue;
+                    }
+                    if (file.getSize() > 10 * 1024 * 1024) { // 10MB限制
+                        return ResponseEntity.badRequest()
+                            .body(new ApiResponse<>(false, "文件大小不能超过10MB", null));
+                    }
+                }
+            }
+            
+            // 2. 存储文件
+            if (files != null && !files.isEmpty()) {
+                try {
+                    storedFilePaths = fileStorageService.storeFiles(files, tokenId);
+                } catch (IOException e) {
+                    logger.severe("文件存储失败: " + e.getMessage());
+                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(new ApiResponse<>(false, "文件存储失败: " + e.getMessage(), null));
+                }
+            }
+            
+            // 3. 创建认证请求
+            CertificationRequestDTO requestDTO = new CertificationRequestDTO();
+            requestDTO.setTokenId(tokenId);
+            requestDTO.setReason(reason);
+            requestDTO.setRequester(requester);
+            requestDTO.setCertifierAddress(certifierAddress);
+            requestDTO.setFilePaths(storedFilePaths);
+            
             AssetCertificationRequest request = certificationService.createRequest(requestDTO);
+            
             return ResponseEntity.ok(new ApiResponse<>(true, "认证请求提交成功", request.getId()));
         } catch (IllegalStateException e) {
+            // 如果创建请求失败，清理已上传的文件
+            if (!storedFilePaths.isEmpty()) {
+                try {
+                    fileStorageService.deleteFiles(storedFilePaths);
+                } catch (Exception ex) {
+                    logger.severe("清理文件失败: " + ex.getMessage());
+                }
+            }
             logger.warning("提交认证请求失败: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>(false, e.getMessage(), null));
         } catch (Exception e) {
+            // 如果发生其他错误，也清理文件
+            if (!storedFilePaths.isEmpty()) {
+                try {
+                    fileStorageService.deleteFiles(storedFilePaths);
+                } catch (Exception ex) {
+                    logger.severe("清理文件失败: " + ex.getMessage());
+                }
+            }
             logger.severe("提交认证请求发生错误: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>(false, "提交认证请求失败: " + e.getMessage(), null));

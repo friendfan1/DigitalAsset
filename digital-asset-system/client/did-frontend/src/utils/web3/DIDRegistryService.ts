@@ -7,230 +7,184 @@ import { ElMessage } from 'element-plus';
 import type { DIDDocument } from '@/types/web3';
 import { BaseWeb3Service } from '@/services/BaseWeb3Service';
 import { web3Config } from '@/config/web3.config';
-//import type { DIDDetails, ReputationChange } from '@/t ypes/global';
-// 使用合约生成的类型
-export type { DIDCreatedEvent } from '@/contracts/types/DIDRegistry';
 
 export class DIDRegistryService extends BaseWeb3Service {
-  private contract: DIDRegistry
-  private eventListeners: Array<() => void> = []
+  private contract: DIDRegistry;
+  private eventListeners: Array<() => void> = [];
 
   constructor(provider: ethers.BrowserProvider, signer: ethers.Signer) {
-    super(provider, signer, web3Config)
+    super(provider, signer, web3Config);
     this.contract = DIDRegistry__factory.connect(
       CONTRACT_ADDRESSES.DIDRegistry,
       signer
-    )
-    this.setupEventListeners()
+    );
+    this.setupEventListeners();
   }
 
   private setupEventListeners() {
-    const didCreatedListener = this.contract.filters.DIDCreated()
-    this.contract.on(didCreatedListener, (user, docHash, timestamp) => {
-      console.log('DID Created:', { user, docHash, timestamp })
-    })
-    this.eventListeners.push(() => this.contract.off(didCreatedListener))
+    const didCreatedListener = this.contract.filters.DIDRegistered(undefined,undefined);
+    this.contract.on(didCreatedListener, (owner, docHash) => {
+      console.log('DID Created:', { owner, docHash });
+    });
+    this.eventListeners.push(() => this.contract.off(didCreatedListener));
   }
 
-  async createDID(docData: DIDDocument): Promise<{ did: string; txHash: string }> {
-    await this.ensureConnection()
+  async createDID(docData: DIDDocument): Promise<{ did: string, txHash: string }> {
+    await this.ensureConnection();
 
     return this.withRetry(async () => {
       try {
-        // 验证合约
-        if (!await this.isContractInitialized()) {
-          throw new Error('合约未正确部署或初始化');
-        }
-
         // 验证网络
         const network = await this.provider.getNetwork();
-        console.log('Current network:', network);
-        
-        // Ganache 的默认 Chain ID 是 1337
         if (network.chainId !== 1337n) {
-            throw new Error('请连接到 Ganache 网络');
+          throw new Error('请连接到测试网络');
         }
 
-        // 验证文档格式
-        this.validateDIDDocument(docData)
-        console.log('docData', docData)
-        // 生成标准化哈希
+        // 生成文档哈希
         const docHash = ethers.keccak256(
           ethers.toUtf8Bytes(JSON.stringify(docData))
-        )
-        console.log('docHash', docHash)
+        );
 
-        // 获取质押金额
-        const stakeAmount = await this.contract.STAKE_AMOUNT()
-        console.log('stakeAmount', stakeAmount)
-        // 检查余额
-        const signer = await this.signer.getAddress()
-        const balance = await this.provider.getBalance(signer)
-        console.log('Account:', signer)
-        console.log('Balance:', ethers.formatEther(balance))
-        
-        if (balance < stakeAmount) {
-          throw new Error(`余额不足，需要 ${ethers.formatEther(stakeAmount)} ETH，当前余额 ${ethers.formatEther(balance)} ETH`)
-        }
+        // 获取质押金额和当前nonce
+        const [stakeAmount, nonce] = await Promise.all([
+          this.contract.STAKE_AMOUNT(),
+          this.contract.nonces(await this.signer.getAddress())
+        ]);
 
-        // 检查 DID 状态
-        const didDetails = await this.contract.getDIDDetails(signer);
-        console.log('DID Details:', {
-          owner: didDetails[0],
-          docHash: didDetails[1],
-          created: Number(didDetails[2]),
-          reputation: Number(didDetails[3]),
-          active: didDetails[4]
-        });
+        // 构造EIP-712签名
+        const domain = await this.getEIP712Domain();
 
-        // 检查 owner 是否为零地址
-        if (didDetails[0] === '0x0000000000000000000000000000000000000000') {
-          console.log('DID 未创建，可以继续');
-        } else {
-          if (didDetails[4]) {
-            throw new Error(`该地址(${signer})已经注册了DID，请使用新的地址`);
-          }
-        }
+        const types = {
+          CreateDID: [
+            { name: 'docHash', type: 'bytes32' },
+            { name: 'nonce', type: 'uint256' }
+          ]
+        };
+
+        const value = {
+          docHash,
+          nonce
+        };
+
+        const signature = await this.signer.signTypedData(domain, types, value);
 
         // 发送交易
-        try {
-          // 先尝试估算 gas
-          const gasEstimate = await this.contract.createDID.estimateGas(docHash, {
-            value: stakeAmount,
-            from: await this.signer.getAddress()  // 显式指定发送者
-          });
-          console.log('Estimated gas:', gasEstimate);
+        const tx = await this.contract.createDID(docHash, signature, {
+          value: stakeAmount
+        });
 
-          // 检查合约地址
-          console.log('Contract address:', this.contract.target);
-          console.log('Signer address:', await this.signer.getAddress());
-          console.log('DocHash:', docHash);
-          console.log('Stake amount:', ethers.formatEther(stakeAmount));
-
-          const tx = await this.contract.createDID(docHash, {
-            value: stakeAmount,
-            gasLimit: gasEstimate * 120n / 100n // 增加 20% 的 gas 限制
-          });
-          console.log('tx', tx);
-          // 监控交易
-          const receipt = await this.monitorTransaction(tx, 'DID 创建')
-          if (!receipt) throw new Error('交易回执为空')
-          
-          // 解析事件
-          const event = receipt.logs[0]
-          if (!event) throw new Error('未找到交易日志')
-
-          const parsedLog = this.contract.interface.parseLog({
-            topics: event.topics,
-            data: event.data
-          })
-
-          if (!parsedLog) throw new Error('无法解析交易日志')
-
-          return {
-            did: `did:example:${parsedLog.args[0]}`,
-            txHash: receipt.hash
-          }
-        } catch (error) {
-          throw await this.handleError(error)
+        const receipt = await this.monitorTransaction(tx, 'DID 创建');
+        if (!receipt) {
+          throw new Error('交易回执为空');
         }
+        return { did: receipt.hash, txHash: receipt.hash };
       } catch (error) {
-        throw await this.handleError(error)
+        throw await this.handleError(error);
       }
-    })
+    });
   }
 
-  async verifyDID(user: string, docHash: string): Promise<boolean> {
-    await this.ensureConnection()
+  async updateDID(newDocData: DIDDocument, deadline: number): Promise<string> {
+    await this.ensureConnection();
 
     return this.withRetry(async () => {
       try {
-        const bytes32Hash = ethers.hexlify(ethers.toBeHex(docHash, 32))
-        return await this.contract.verifyDID(user, bytes32Hash)
+        const newDocHash = ethers.keccak256(
+          ethers.toUtf8Bytes(JSON.stringify(newDocData))
+        );
+
+        const signerAddress = await this.signer.getAddress();
+        const nonce = await this.contract.nonces(signerAddress);
+
+        // 构造EIP-712签名
+        const domain = await this.getEIP712Domain();
+        const types = {
+          UpdateDID: [
+            { name: 'newDocHash', type: 'bytes32' },
+            { name: 'nonce', type: 'uint256' },
+            { name: 'deadline', type: 'uint256' }
+          ]
+        };
+
+        const value = {
+          newDocHash,
+          nonce,
+          deadline
+        };
+
+        const signature = await this.signer.signTypedData(domain, types, value);
+
+        const tx = await this.contract.updateDID(newDocHash, deadline, signature);
+        const receipt = await this.monitorTransaction(tx, '更新DID');
+        if (!receipt) {
+          throw new Error('交易回执为空');
+        }
+        return receipt.hash;
       } catch (error) {
-        throw await this.handleError(error)
+        throw await this.handleError(error);
       }
-    })
-  }
-
-  async getStakeAmount(): Promise<bigint> {
-    return this.contract.STAKE_AMOUNT()
-  }
-
-  async getCurrentAddress(): Promise<string> {
-    return this.signer.getAddress()
-  }
-
-  async isContractInitialized(): Promise<boolean> {
-    try {
-      const code = await this.provider.getCode(this.contract.target);
-      console.log('Contract code:', code);
-      return code !== '0x';
-    } catch (error) {
-      console.error('Contract initialization check failed:', error);
-      return false;
-    }
-  }
-
-  private validateDIDDocument(doc: DIDDocument) {
-    if (!doc['@context'] || !doc.id || !doc.created) {
-      throw new Error('无效的 DID 文档格式')
-    }
-
-    if (!doc.verificationMethod || !Array.isArray(doc.verificationMethod)) {
-      throw new Error('无效的验证方法')
-    }
-
-    if (!doc.authentication || !Array.isArray(doc.authentication)) {
-      throw new Error('无效的认证方法')
-    }
-  }
-
-  // 清理事件监听器
-  destroy() {
-    this.eventListeners.forEach(removeListener => removeListener())
-    this.eventListeners = []
+    });
   }
 
   async getDIDInfo(address: string) {
-    await this.ensureConnection()
+    await this.ensureConnection();
 
     return this.withRetry(async () => {
       try {
-        const didDetails = await this.contract.getDIDDetails(address)
+        const did = await this.contract.getDID(address);
         
-        // 如果 owner 是零地址，说明 DID 不存在
-        if (didDetails[0] === '0x0000000000000000000000000000000000000000') {
-          return null
-        }
+        if (!did.active) return null;
 
         return {
-          owner: didDetails[0],
-          docHash: didDetails[1],
-          created: new Date(Number(didDetails[2]) * 1000), // 转换为 JavaScript Date 对象
-          reputation: Number(didDetails[3]),
-          active: didDetails[4],
-          did: `did:example:${address}`
-        }
+          docHash: did.docHash,
+          created: new Date(Number(did.created) * 1000),
+          reputation: Number(did.reputation),
+          active: did.active,
+          controller: did.controller
+        };
       } catch (error) {
-        throw await this.handleError(error)
+        throw await this.handleError(error);
       }
-    })
+    });
+  }
+
+  async getCurrentNonce(): Promise<bigint> {
+    const address = await this.signer.getAddress();
+    return this.contract.nonces(address);
+  }
+
+  private async getEIP712Domain() {
+    const network = await this.provider.getNetwork();
+    return {
+      name: 'DIDRegistry',
+      version: '1',
+      chainId: network.chainId,
+      verifyingContract: ethers.getAddress(await this.contract.target.toString()) // 关键修正
+    };
+  }
+
+  async checkDocHashAvailability(docHash: string): Promise<boolean> {
+    const owner = await this.contract.getDocHashOwner(docHash);
+    return owner === ethers.ZeroAddress;
+  }
+
+  destroy() {
+    this.eventListeners.forEach(removeListener => removeListener());
+    this.eventListeners = [];
   }
 }
 
-// 带缓存的工厂函数
-let serviceInstance: DIDRegistryService | null = null
+// 工厂函数
+let serviceInstance: DIDRegistryService | null = null;
 
 export const getDIDRegistryService = async () => {
   if (!serviceInstance) {
-    if (!window.ethereum) throw new Error('请安装MetaMask')
+    if (!window.ethereum) throw new Error('请安装以太坊钱包');
     
-    const provider = new ethers.BrowserProvider(window.ethereum)
-    await provider.send("eth_requestAccounts", []) // 自动请求账户
-    const signer = await provider.getSigner()
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
     
-    serviceInstance = new DIDRegistryService(provider, signer)
+    serviceInstance = new DIDRegistryService(provider, signer);
   }
-  return serviceInstance
-}
+  return serviceInstance;
+};

@@ -1,8 +1,11 @@
 package com.wpf.DigitalAsset.dto;
 
 import lombok.Data;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -14,7 +17,9 @@ public class CertificationRequestDTO {
     private Long tokenId;
     private String reason;
     private String requester;
+    private String certifierAddress;
     private LocalDateTime requestTime;
     private String status;
-    private String certifierAddress;
+    private List<MultipartFile> files;
+    private List<String> filePaths;
 }

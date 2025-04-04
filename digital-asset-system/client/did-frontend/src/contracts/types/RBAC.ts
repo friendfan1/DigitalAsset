@@ -29,22 +29,36 @@ export interface RBACInterface extends Interface {
       | "ADMIN_ROLE"
       | "CERTIFIER_ROLE"
       | "DEFAULT_ADMIN_ROLE"
+      | "DID_MANAGER_ROLE"
+      | "KEY_MANAGER_ROLE"
       | "REGISTRAR_ROLE"
+      | "ROLE_GRANT_TYPEHASH"
+      | "ROLE_REVOKE_TYPEHASH"
+      | "eip712Domain"
       | "getRoleAdmin"
       | "getRoleMember"
       | "getRoleMemberCount"
       | "grantRole"
       | "hasRole"
+      | "nonces"
       | "renounceRole"
       | "revokeRole"
       | "supportsInterface"
-      | "grantMultipleRoles"
+      | "grantRoleWithSignature"
+      | "revokeRoleWithSignature"
       | "hasAnyRole"
-      | "getRoleHash"
+      | "grantDIDManager"
+      | "revokeDIDManager"
+      | "grantKeyManager"
+      | "revokeKeyManager"
   ): FunctionFragment;
 
   getEvent(
-    nameOrSignatureOrTopic: "RoleAdminChanged" | "RoleGranted" | "RoleRevoked"
+    nameOrSignatureOrTopic:
+      | "EIP712DomainChanged"
+      | "RoleAdminChanged"
+      | "RoleGranted"
+      | "RoleRevoked"
   ): EventFragment;
 
   encodeFunctionData(
@@ -60,7 +74,27 @@ export interface RBACInterface extends Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "DID_MANAGER_ROLE",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "KEY_MANAGER_ROLE",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "REGISTRAR_ROLE",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "ROLE_GRANT_TYPEHASH",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "ROLE_REVOKE_TYPEHASH",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "eip712Domain",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -83,6 +117,7 @@ export interface RBACInterface extends Interface {
     functionFragment: "hasRole",
     values: [BytesLike, AddressLike]
   ): string;
+  encodeFunctionData(functionFragment: "nonces", values: [AddressLike]): string;
   encodeFunctionData(
     functionFragment: "renounceRole",
     values: [BytesLike, AddressLike]
@@ -96,14 +131,33 @@ export interface RBACInterface extends Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "grantMultipleRoles",
-    values: [AddressLike[], BytesLike[]]
+    functionFragment: "grantRoleWithSignature",
+    values: [BytesLike, AddressLike, BigNumberish, BytesLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "revokeRoleWithSignature",
+    values: [BytesLike, AddressLike, BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "hasAnyRole",
     values: [AddressLike, BytesLike[]]
   ): string;
-  encodeFunctionData(functionFragment: "getRoleHash", values: [string]): string;
+  encodeFunctionData(
+    functionFragment: "grantDIDManager",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "revokeDIDManager",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "grantKeyManager",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "revokeKeyManager",
+    values: [AddressLike]
+  ): string;
 
   decodeFunctionResult(functionFragment: "ADMIN_ROLE", data: BytesLike): Result;
   decodeFunctionResult(
@@ -115,7 +169,27 @@ export interface RBACInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "DID_MANAGER_ROLE",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "KEY_MANAGER_ROLE",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "REGISTRAR_ROLE",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "ROLE_GRANT_TYPEHASH",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "ROLE_REVOKE_TYPEHASH",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "eip712Domain",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -132,6 +206,7 @@ export interface RBACInterface extends Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "grantRole", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "hasRole", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "nonces", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceRole",
     data: BytesLike
@@ -142,14 +217,40 @@ export interface RBACInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "grantMultipleRoles",
+    functionFragment: "grantRoleWithSignature",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "revokeRoleWithSignature",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "hasAnyRole", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "getRoleHash",
+    functionFragment: "grantDIDManager",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "revokeDIDManager",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "grantKeyManager",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "revokeKeyManager",
+    data: BytesLike
+  ): Result;
+}
+
+export namespace EIP712DomainChangedEvent {
+  export type InputTuple = [];
+  export type OutputTuple = [];
+  export interface OutputObject {}
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace RoleAdminChangedEvent {
@@ -259,7 +360,34 @@ export interface RBAC extends BaseContract {
 
   DEFAULT_ADMIN_ROLE: TypedContractMethod<[], [string], "view">;
 
+  DID_MANAGER_ROLE: TypedContractMethod<[], [string], "view">;
+
+  KEY_MANAGER_ROLE: TypedContractMethod<[], [string], "view">;
+
   REGISTRAR_ROLE: TypedContractMethod<[], [string], "view">;
+
+  ROLE_GRANT_TYPEHASH: TypedContractMethod<[], [string], "view">;
+
+  ROLE_REVOKE_TYPEHASH: TypedContractMethod<[], [string], "view">;
+
+  /**
+   * See {EIP-5267}. _Available since v4.9._
+   */
+  eip712Domain: TypedContractMethod<
+    [],
+    [
+      [string, string, string, bigint, string, string, bigint[]] & {
+        fields: string;
+        name: string;
+        version: string;
+        chainId: bigint;
+        verifyingContract: string;
+        salt: string;
+        extensions: bigint[];
+      }
+    ],
+    "view"
+  >;
 
   /**
    * Returns the admin role that controls `role`. See {grantRole} and {revokeRole}. To change a role's admin, use {_setRoleAdmin}.
@@ -298,6 +426,8 @@ export interface RBAC extends BaseContract {
     "view"
   >;
 
+  nonces: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
+
   /**
    * Revokes `role` from the calling account. Roles are often managed via {grantRole} and {revokeRole}: this function's purpose is to provide a mechanism for accounts to lose their privileges if they are compromised (such as when a trusted device is misplaced). If the calling account had been revoked `role`, emits a {RoleRevoked} event. Requirements: - the caller must be `account`. May emit a {RoleRevoked} event.
    */
@@ -325,8 +455,24 @@ export interface RBAC extends BaseContract {
     "view"
   >;
 
-  grantMultipleRoles: TypedContractMethod<
-    [accounts: AddressLike[], roles: BytesLike[]],
+  grantRoleWithSignature: TypedContractMethod<
+    [
+      role: BytesLike,
+      account: AddressLike,
+      deadline: BigNumberish,
+      signature: BytesLike
+    ],
+    [void],
+    "nonpayable"
+  >;
+
+  revokeRoleWithSignature: TypedContractMethod<
+    [
+      role: BytesLike,
+      account: AddressLike,
+      deadline: BigNumberish,
+      signature: BytesLike
+    ],
     [void],
     "nonpayable"
   >;
@@ -337,7 +483,29 @@ export interface RBAC extends BaseContract {
     "view"
   >;
 
-  getRoleHash: TypedContractMethod<[role: string], [string], "view">;
+  grantDIDManager: TypedContractMethod<
+    [account: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  revokeDIDManager: TypedContractMethod<
+    [account: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  grantKeyManager: TypedContractMethod<
+    [account: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  revokeKeyManager: TypedContractMethod<
+    [account: AddressLike],
+    [void],
+    "nonpayable"
+  >;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
@@ -353,8 +521,37 @@ export interface RBAC extends BaseContract {
     nameOrSignature: "DEFAULT_ADMIN_ROLE"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "DID_MANAGER_ROLE"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "KEY_MANAGER_ROLE"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
     nameOrSignature: "REGISTRAR_ROLE"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "ROLE_GRANT_TYPEHASH"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "ROLE_REVOKE_TYPEHASH"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "eip712Domain"
+  ): TypedContractMethod<
+    [],
+    [
+      [string, string, string, bigint, string, string, bigint[]] & {
+        fields: string;
+        name: string;
+        version: string;
+        chainId: bigint;
+        verifyingContract: string;
+        salt: string;
+        extensions: bigint[];
+      }
+    ],
+    "view"
+  >;
   getFunction(
     nameOrSignature: "getRoleAdmin"
   ): TypedContractMethod<[role: BytesLike], [string], "view">;
@@ -383,6 +580,9 @@ export interface RBAC extends BaseContract {
     "view"
   >;
   getFunction(
+    nameOrSignature: "nonces"
+  ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
+  getFunction(
     nameOrSignature: "renounceRole"
   ): TypedContractMethod<
     [role: BytesLike, account: AddressLike],
@@ -400,9 +600,26 @@ export interface RBAC extends BaseContract {
     nameOrSignature: "supportsInterface"
   ): TypedContractMethod<[interfaceId: BytesLike], [boolean], "view">;
   getFunction(
-    nameOrSignature: "grantMultipleRoles"
+    nameOrSignature: "grantRoleWithSignature"
   ): TypedContractMethod<
-    [accounts: AddressLike[], roles: BytesLike[]],
+    [
+      role: BytesLike,
+      account: AddressLike,
+      deadline: BigNumberish,
+      signature: BytesLike
+    ],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "revokeRoleWithSignature"
+  ): TypedContractMethod<
+    [
+      role: BytesLike,
+      account: AddressLike,
+      deadline: BigNumberish,
+      signature: BytesLike
+    ],
     [void],
     "nonpayable"
   >;
@@ -414,9 +631,25 @@ export interface RBAC extends BaseContract {
     "view"
   >;
   getFunction(
-    nameOrSignature: "getRoleHash"
-  ): TypedContractMethod<[role: string], [string], "view">;
+    nameOrSignature: "grantDIDManager"
+  ): TypedContractMethod<[account: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "revokeDIDManager"
+  ): TypedContractMethod<[account: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "grantKeyManager"
+  ): TypedContractMethod<[account: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "revokeKeyManager"
+  ): TypedContractMethod<[account: AddressLike], [void], "nonpayable">;
 
+  getEvent(
+    key: "EIP712DomainChanged"
+  ): TypedContractEvent<
+    EIP712DomainChangedEvent.InputTuple,
+    EIP712DomainChangedEvent.OutputTuple,
+    EIP712DomainChangedEvent.OutputObject
+  >;
   getEvent(
     key: "RoleAdminChanged"
   ): TypedContractEvent<
@@ -440,6 +673,17 @@ export interface RBAC extends BaseContract {
   >;
 
   filters: {
+    "EIP712DomainChanged()": TypedContractEvent<
+      EIP712DomainChangedEvent.InputTuple,
+      EIP712DomainChangedEvent.OutputTuple,
+      EIP712DomainChangedEvent.OutputObject
+    >;
+    EIP712DomainChanged: TypedContractEvent<
+      EIP712DomainChangedEvent.InputTuple,
+      EIP712DomainChangedEvent.OutputTuple,
+      EIP712DomainChangedEvent.OutputObject
+    >;
+
     "RoleAdminChanged(bytes32,bytes32,bytes32)": TypedContractEvent<
       RoleAdminChangedEvent.InputTuple,
       RoleAdminChangedEvent.OutputTuple,

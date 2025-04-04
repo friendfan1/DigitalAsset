@@ -174,7 +174,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f8f9fa;
+  background: #ffffff;
   border-radius: 8px;
   overflow: hidden;
   border: none;
@@ -183,8 +183,8 @@ onMounted(() => {
 
 .chat-header {
   padding: 6px 10px;
-  background: rgba(10, 25, 47, 0.8);
-  border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+  background: #ffffff;
+  border-bottom: 1px solid #dddddd;
   display: flex;
   justify-content: flex-end;
   align-items: center;
@@ -198,19 +198,19 @@ onMounted(() => {
 
 .clear-btn {
   background-color: transparent !important;
-  border-color: #ff5252 !important;
-  color: #ff5252 !important;
+  border-color: #ff4d4f !important;
+  color: #ff4d4f !important;
   padding: 3px 6px;
   font-size: 12px;
   height: 28px;
 }
 
 .clear-btn:hover {
-  background-color: rgba(255, 82, 82, 0.1) !important;
+  background-color: rgba(255, 77, 79, 0.1) !important;
 }
 
 .clear-btn:active {
-  background-color: rgba(255, 82, 82, 0.2) !important;
+  background-color: rgba(255, 77, 79, 0.2) !important;
 }
 
 .model-selector {
@@ -223,42 +223,42 @@ onMounted(() => {
 }
 
 .model-selector :deep(.el-input__wrapper) {
-  background-color: rgba(10, 25, 47, 0.6);
-  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.2);
-  border-color: rgba(100, 255, 218, 0.2);
+  background-color: #ffffff;
+  box-shadow: 0 0 0 1px #dddddd;
+  border-color: #dddddd;
   padding: 0 6px;
   height: 28px;
 }
 
 .model-selector :deep(.el-input__inner) {
-  color: #e6f1ff;
+  color: #000000;
   font-size: 12px;
 }
 
 .model-selector :deep(.el-select__caret) {
-  color: #64ffda;
+  color: #000000;
   font-size: 12px;
 }
 
 :deep(.el-select-dropdown) {
-  background-color: rgba(10, 25, 47, 0.95);
-  border: 1px solid rgba(100, 255, 218, 0.2);
+  background-color: #ffffff;
+  border: 1px solid #dddddd;
 }
 
 :deep(.el-select-dropdown__item) {
-  color: #e6f1ff;
+  color: #333333;
   font-size: 12px;
   padding: 4px 8px;
 }
 
 :deep(.el-select-dropdown__item.hover) {
-  background-color: rgba(100, 255, 218, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 :deep(.el-select-dropdown__item.selected) {
-  color: #64ffda;
+  color: #000000;
   font-weight: bold;
-  background-color: rgba(100, 255, 218, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 .chat-messages {
@@ -268,7 +268,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: #f8f9fa;
+  background: #ffffff;
 }
 
 .message {
@@ -289,23 +289,23 @@ onMounted(() => {
 }
 
 .user-message .message-content {
-  background: rgba(10, 25, 47, 0.8);
-  color: #e6f1ff;
+  background: #000000;
+  color: #ffffff;
   border-radius: 8px 8px 0 8px;
-  border: 1px solid rgba(100, 255, 218, 0.2);
+  border: 1px solid #000000;
 }
 
 .user-message .message-content * {
-  color: #e6f1ff !important;
+  color: #ffffff !important;
 }
 
 .user-message .message-time {
-  color: rgba(230, 241, 255, 0.7) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 
 /* 用户消息中的Markdown样式 */
 .user-message :deep(.markdown-body) {
-  color: #e6f1ff !important;
+  color: #ffffff !important;
   background: transparent;
 }
 
@@ -313,67 +313,67 @@ onMounted(() => {
 .user-message :deep(.markdown-body li),
 .user-message :deep(.markdown-body span),
 .user-message :deep(.markdown-body div) {
-  color: #e6f1ff !important;
+  color: #ffffff !important;
 }
 
 .user-message :deep(.markdown-body code) {
-  background-color: rgba(100, 255, 218, 0.2);
-  color: #e6f1ff !important;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff !important;
 }
 
 .user-message :deep(.markdown-body pre) {
-  background-color: rgba(0, 0, 0, 0.3);
-  color: #e6f1ff !important;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff !important;
 }
 
 .user-message :deep(.markdown-body pre code) {
-  color: #e6f1ff !important;
+  color: #ffffff !important;
 }
 
 .user-message :deep(.markdown-body blockquote) {
-  color: rgba(230, 241, 255, 0.9) !important;
-  border-left-color: rgba(100, 255, 218, 0.5);
+  color: rgba(255, 255, 255, 0.9) !important;
+  border-left-color: rgba(255, 255, 255, 0.3);
 }
 
 .user-message :deep(.markdown-body table) {
-  color: #e6f1ff !important;
+  color: #ffffff !important;
 }
 
 .user-message :deep(.markdown-body table th),
 .user-message :deep(.markdown-body table td) {
-  border-color: rgba(100, 255, 218, 0.3);
-  color: #e6f1ff !important;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff !important;
 }
 
 .user-message :deep(.markdown-body table tr) {
-  background-color: rgba(0, 0, 0, 0.2);
-  border-color: rgba(100, 255, 218, 0.3);
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .user-message :deep(.markdown-body table tr:nth-child(2n)) {
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .ai-message .message-content {
-  background: #fff;
-  color: #333;
+  background: #ffffff;
+  color: #000000;
   border-radius: 8px 8px 8px 0;
-  border: 1px solid #e4e7ed;
+  border: 1px solid #dddddd;
 }
 
 .message-time {
   font-size: 11px;
-  color: #999;
+  color: #999999;
   margin-top: 4px;
   text-align: right;
 }
 
 .chat-input {
   padding: 6px 10px;
-  border-top: 1px solid rgba(100, 255, 218, 0.1);
+  border-top: 1px solid #dddddd;
   display: flex;
   gap: 6px;
-  background: rgba(10, 25, 47, 0.05);
+  background: #ffffff;
 }
 
 .chat-input .el-input {
@@ -381,8 +381,8 @@ onMounted(() => {
 }
 
 .chat-input .el-input :deep(.el-textarea__inner) {
-  background: #fff;
-  border: 1px solid #dcdfe6;
+  background: #ffffff;
+  border: 1px solid #dddddd;
   transition: all 0.3s;
   min-height: 48px;
   font-size: 13px;
@@ -392,17 +392,17 @@ onMounted(() => {
 
 .chat-input .el-button {
   align-self: flex-end;
-  background: #0a192f;
-  border-color: #0a192f;
-  color: #64ffda;
+  background: #000000;
+  border-color: #000000;
+  color: #ffffff;
   padding: 6px 12px;
   font-size: 13px;
   height: 32px;
 }
 
 .chat-input .el-button:hover {
-  background: rgba(10, 25, 47, 0.9);
-  border-color: #64ffda;
+  background: #333333;
+  border-color: #333333;
 }
 
 /* Markdown样式优化 */
@@ -476,17 +476,17 @@ onMounted(() => {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(10, 25, 47, 0.05);
+  background: rgba(0, 0, 0, 0.05);
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 255, 218, 0.2);
+  background: rgba(0, 0, 0, 0.2);
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 255, 218, 0.3);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 </style> 

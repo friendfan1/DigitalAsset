@@ -33,16 +33,17 @@ const routes = [
     meta: { requiresAuth: false }
   },
   {
-    path: '/fileshare',
-    name: 'FileShare',
-    component: () => import('@/views/file/FileShare.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
     path: '/access',
     name: 'Access',
-    component: () => import('@/views/file/AccessManagement.vue'), // 确认路径正确
-    meta: { requiresAuth: true } // 如果需要登录权限
+    component: () => import('@/views/file/AccessManagement.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: 'list',
+        name: 'AssetList',
+        component: () => import('@/views/asset/AssetList.vue')
+      }
+    ]
   },
   {
     path: '/profile',
@@ -84,6 +85,21 @@ const routes = [
     path: '/ai/chat',
     name: 'AIChat',
     component: () => import('@/views/ai/AIChat.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/key-management',
+    name: 'KeyManagement',
+    component: () => import('@/components/KeyManagement.vue'),
+    meta: {
+      requiresAuth: true,
+      title: '密钥管理'
+    }
+  },
+  {
+    path: '/asset/list',
+    name: 'AssetList',
+    component: () => import('@/views/asset/AssetList.vue'),
     meta: { requiresAuth: true }
   }
 ];

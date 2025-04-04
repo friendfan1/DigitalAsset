@@ -32,9 +32,9 @@
         <p class="secondary-text">
           支持的文件类型: {{ displayAcceptedTypes }}
         </p>
-        <p class="secondary-text">
+        <!-- <p class="secondary-text">
           最大文件大小: {{ fileUtils.formatFileSize(maxFileSize) }}
-        </p>
+        </p> -->
       </div>
     </div>
   </div>

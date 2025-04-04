@@ -177,9 +177,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, h } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, type FormInstance } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { Message, Lock, Key } from '@element-plus/icons-vue'
 import axios from 'axios'
+import { KeyManagementService } from '@/services/keyManagement'
 
 // 自定义图标组件 - 使用 h 函数创建
 const VerificationCode = () => h('svg', {
@@ -348,7 +349,10 @@ const sendVerificationEmail = async () => {
   }
 }
 
-// 处理注册提交
+// 在script setup中添加
+const keyService = KeyManagementService.getInstance()
+
+// 修改handleRegister函数
 const handleRegister = async () => {
   if (!registerFormRef.value) return
   
@@ -358,25 +362,47 @@ const handleRegister = async () => {
     if (!valid) return
     
     isSubmitting.value = true
+
+    // 生成密钥对
+    const { privateKey, publicKey, address } = await keyService.generateKeyPair()
     
     const { data } = await axios.post('/api/public/register', {
       username: registerForm.value.companyName,
       password: registerForm.value.password,
       email: registerForm.value.email,
       phone: '',
-      verificationCode: registerForm.value.verificationCode
+      verificationCode: registerForm.value.verificationCode,
+      publicKey: publicKey, // 添加公钥
+      address: address // 添加地址
     });
 
     if (data.success) {
-      ElMessage({
-        message: data.message,
-        type: 'success',
-        duration: 3000
-      });
-      router.push({
-        path: '/login',
-        query: { email: registerForm.value.email }
-      });
+      // 显示私钥保存提示
+      ElMessageBox.alert(
+        `请妥善保管您的私钥，它将用于后续的身份验证和签名操作：<br/><br/>
+        <code style="word-break: break-all;">${privateKey}</code><br/><br/>
+        <strong>重要提示：</strong><br/>
+        1. 请将私钥安全保存，不要泄露给他人<br/>
+        2. 建议将私钥备份到安全的地方<br/>
+        3. 私钥丢失将无法找回<br/>
+        4. 您可以使用此私钥导入到MetaMask钱包`,
+        '保存私钥',
+        {
+          confirmButtonText: '我已安全保存',
+          dangerouslyUseHTMLString: true,
+          customClass: 'key-alert-dialog'
+        }
+      ).then(() => {
+        ElMessage({
+          message: data.message,
+          type: 'success',
+          duration: 3000
+        });
+        router.push({
+          path: '/login',
+          query: { email: registerForm.value.email }
+        });
+      })
     } else {
       ElMessage.error(data.message);
     }
@@ -407,8 +433,8 @@ const goToLogin = () => {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: #0a192f;
-  color: #e6f1ff;
+  background: #ffffff;
+  color: #000000;
   overflow: hidden;
   position: relative;
   padding: 2rem 0;
@@ -430,7 +456,7 @@ const goToLogin = () => {
   position: absolute;
   font-family: monospace;
   font-size: 1.2rem;
-  color: #64ffda;
+  color: #333333;
   animation: fadeInOut 8s infinite;
 }
 
@@ -457,11 +483,11 @@ const goToLogin = () => {
 .glitch-text {
   font-size: 2.5rem;
   font-weight: 800;
-  color: #ccd6f6;
+  color: #000000;
   position: relative;
-  text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75),
-              -0.025em -0.05em 0 rgba(0, 255, 0, 0.75),
-              0.025em 0.05em 0 rgba(0, 0, 255, 0.75);
+  text-shadow: 0.05em 0 0 rgba(0, 0, 0, 0.75),
+              -0.025em -0.05em 0 rgba(0, 0, 0, 0.75),
+              0.025em 0.05em 0 rgba(0, 0, 0, 0.75);
   animation: glitch 500ms infinite;
 }
 
@@ -477,14 +503,14 @@ const goToLogin = () => {
 
 .glitch-text::before {
   left: 2px;
-  text-shadow: -2px 0 #ff00c1;
+  text-shadow: -2px 0 #333333;
   clip: rect(44px, 450px, 56px, 0);
   animation: glitch-anim 5s infinite linear alternate-reverse;
 }
 
 .glitch-text::after {
   left: -2px;
-  text-shadow: -2px 0 #00fff9, 2px 2px #ff00c1;
+  text-shadow: -2px 0 #666666, 2px 2px #333333;
   animation: glitch-anim2 1s infinite linear alternate-reverse;
 }
 
@@ -546,18 +572,18 @@ const goToLogin = () => {
 .register-card {
   width: 100%;
   border-radius: 12px;
-  border: 1px solid rgba(100, 255, 218, 0.3);
-  background: rgba(10, 25, 47, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.8);
   padding: 40px;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  box-shadow: 0 0 30px rgba(100, 255, 218, 0.2);
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
   transform-style: preserve-3d;
   backdrop-filter: blur(10px);
 }
 
 .register-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 15px 40px rgba(100, 255, 218, 0.3);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
 }
 
 .form-container {
@@ -565,33 +591,33 @@ const goToLogin = () => {
 }
 
 .neon-label {
-  color: #64ffda;
+  color: #000000;
   font-weight: 600;
-  text-shadow: 0 0 5px rgba(100, 255, 218, 0.5);
+  text-shadow: none;
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
   letter-spacing: 1px;
 }
 
 .input-icon {
-  color: #64ffda;
+  color: #333333;
 }
 
 :deep(.el-input__wrapper) {
-  background: rgba(15, 34, 58, 0.8);
-  border: 1px solid rgba(100, 255, 218, 0.2);
+  background: rgba(245, 245, 245, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.2);
   box-shadow: none;
   transition: all 0.3s ease;
 }
 
 :deep(.el-input__wrapper:hover),
 :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.5);
-  border-color: #64ffda;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  border-color: #000000;
 }
 
 :deep(.el-input__inner) {
-  color: #e6f1ff;
+  color: #000000;
 }
 
 .verification-input-group {
@@ -606,8 +632,8 @@ const goToLogin = () => {
 .verify-button {
   min-width: 100px;
   background: transparent;
-  border: 1px solid #64ffda;
-  color: #64ffda;
+  border: 1px solid #000000;
+  color: #000000;
   border-radius: 4px;
   font-size: 0.85rem;
   cursor: pointer;
@@ -618,15 +644,15 @@ const goToLogin = () => {
 }
 
 .verify-button:hover:not(:disabled) {
-  background: rgba(100, 255, 218, 0.1);
-  box-shadow: 0 0 10px rgba(100, 255, 218, 0.3);
+  background: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 }
 
 .verify-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  border-color: #64798e;
-  color: #64798e;
+  border-color: #666666;
+  color: #666666;
 }
 
 .verify-button.sending {
@@ -644,22 +670,22 @@ const goToLogin = () => {
   align-items: center;
   gap: 5px;
   margin-top: 8px;
-  color: #64ffda;
+  color: #000000;
   font-size: 0.85rem;
 }
 
 :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-  background-color: #64ffda;
-  border-color: #64ffda;
+  background-color: #000000;
+  border-color: #000000;
 }
 
 :deep(.el-checkbox__inner) {
-  background-color: rgba(15, 34, 58, 0.8);
-  border-color: rgba(100, 255, 218, 0.5);
+  background-color: rgba(245, 245, 245, 0.8);
+  border-color: rgba(0, 0, 0, 0.5);
 }
 
 :deep(.el-checkbox__label) {
-  color: #a8b2d1;
+  color: #333333;
 }
 
 .cyber-checkbox {
@@ -676,8 +702,8 @@ const goToLogin = () => {
   width: 100%;
   height: 50px;
   background: transparent;
-  border: 2px solid #64ffda;
-  color: #64ffda;
+  border: 2px solid #000000;
+  color: #000000;
   font-size: 1rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -685,7 +711,7 @@ const goToLogin = () => {
   cursor: pointer;
   overflow: hidden;
   transition: all 0.3s ease;
-  box-shadow: 0 0 10px rgba(100, 255, 218, 0.3);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 }
 
 .cyber-button::before {
@@ -695,7 +721,7 @@ const goToLogin = () => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(100, 255, 218, 0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.4), transparent);
   transition: all 0.6s ease;
 }
 
@@ -704,8 +730,8 @@ const goToLogin = () => {
 }
 
 .cyber-button:hover {
-  background: rgba(100, 255, 218, 0.1);
-  box-shadow: 0 0 20px rgba(100, 255, 218, 0.5);
+  background: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
   transform: translateY(-2px);
 }
 
@@ -729,11 +755,11 @@ const goToLogin = () => {
 .login-link {
   text-align: center;
   margin-top: 2rem;
-  color: #a8b2d1;
+  color: #333333;
 }
 
 .cyber-link {
-  color: #64ffda;
+  color: #000000;
   margin-left: 0.5rem;
   cursor: pointer;
   position: relative;
@@ -748,12 +774,12 @@ const goToLogin = () => {
   left: 0;
   width: 0;
   height: 1px;
-  background: #64ffda;
+  background: #000000;
   transition: width 0.3s ease;
 }
 
 .cyber-link:hover {
-  text-shadow: 0 0 8px rgba(100, 255, 218, 0.8);
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
 }
 
 .cyber-link:hover::after {
@@ -762,31 +788,31 @@ const goToLogin = () => {
 
 /* 协议弹窗样式 */
 :deep(.cyber-dialog .el-dialog) {
-  background: #0a192f;
-  border: 1px solid #64ffda;
-  box-shadow: 0 0 30px rgba(100, 255, 218, 0.3);
+  background: #ffffff;
+  border: 1px solid #000000;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
   border-radius: 8px;
 }
 
 :deep(.cyber-dialog .el-dialog__header) {
-  border-bottom: 1px solid rgba(100, 255, 218, 0.3);
-  color: #64ffda;
-  text-shadow: 0 0 5px rgba(100, 255, 218, 0.5);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  color: #000000;
+  text-shadow: none;
   padding: 20px;
 }
 
 :deep(.cyber-dialog .el-dialog__title) {
-  color: #64ffda;
+  color: #000000;
   font-weight: 600;
 }
 
 :deep(.cyber-dialog .el-dialog__body) {
-  color: #e6f1ff;
+  color: #000000;
   padding: 30px;
 }
 
 :deep(.cyber-dialog .el-dialog__footer) {
-  border-top: 1px solid rgba(100, 255, 218, 0.3);
+  border-top: 1px solid rgba(0, 0, 0, 0.3);
   padding: 15px;
 }
 
@@ -801,11 +827,11 @@ const goToLogin = () => {
 }
 
 .protocol-content::-webkit-scrollbar-track {
-  background: rgba(15, 34, 58, 0.8);
+  background: rgba(245, 245, 245, 0.8);
 }
 
 .protocol-content::-webkit-scrollbar-thumb {
-  background: #64ffda;
+  background: #666666;
   border-radius: 10px;
 }
 
@@ -825,6 +851,46 @@ const goToLogin = () => {
   .verify-button {
     height: 40px;
     width: 100%;
+  }
+}
+
+:global(.key-alert-dialog) {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  
+  .el-message-box__title {
+    color: #000000;
+  }
+  
+  .el-message-box__content {
+    color: #000000;
+    
+    code {
+      display: block;
+      padding: 10px;
+      background: rgba(245, 245, 245, 0.8);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 4px;
+      color: #000000;
+      font-family: monospace;
+    }
+    
+    strong {
+      color: #000000;
+    }
+  }
+  
+  .el-message-box__btns {
+    .el-button {
+      background: transparent;
+      border: 1px solid #000000;
+      color: #000000;
+      
+      &:hover {
+        background: rgba(0, 0, 0, 0.1);
+      }
+    }
   }
 }
 </style>

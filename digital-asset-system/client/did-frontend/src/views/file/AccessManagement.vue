@@ -24,275 +24,19 @@
     <!-- 资产列表 -->
     <div v-if="activeTab === 'assets'" class="assets-section">
       <div class="section-header">
-        <h2 class="section-title glitch-text" data-text="我的数字资产">我的数字资产</h2>
+        <h2 class="section-title" data-text="资产列表">资产列表</h2>
       </div>
-      
-      <!-- 搜索和筛选区 -->
-      <div class="search-filter-container">
-        <!-- 基本搜索框 -->
-        <div class="search-box">
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索资产..."
-            clearable
-            prefix-icon="el-icon-search"
-            @input="handleSearch"
-          />
-        </div>
-        
-        <!-- 高级筛选面板 -->
-        <div class="filter-panel">
-          <el-collapse v-model="expandedPanels">
-            <el-collapse-item title="高级筛选" name="filters">
-              <div class="filter-options">
-                <!-- 文件类型筛选 -->
-                <div class="filter-group">
-                  <h4>文件类型</h4>
-                  <el-checkbox-group v-model="filters.fileTypes">
-                    <el-checkbox label="image">图片</el-checkbox>
-                    <el-checkbox label="document">文档</el-checkbox>
-                    <el-checkbox label="video">视频</el-checkbox>
-                    <el-checkbox label="audio">音频</el-checkbox>
-                    <el-checkbox label="other">其他</el-checkbox>
-                  </el-checkbox-group>
-                </div>
-                
-                <!-- 文件大小筛选 -->
-                <div class="filter-group">
-                  <h4>文件大小</h4>
-                  <el-radio-group v-model="filters.fileSize">
-                    <el-radio label="small">小 (< 1MB)</el-radio>
-                    <el-radio label="medium">中 (1MB - 10MB)</el-radio>
-                    <el-radio label="large">大 (> 10MB)</el-radio>
-                    <el-radio label="custom">自定义</el-radio>
-                  </el-radio-group>
-                  
-                  <div v-if="filters.fileSize === 'custom'" class="custom-size-range">
-                    <el-input-number
-                      v-model="filters.minSize"
-                      :min="0"
-                      :step="1"
-                      size="small"
-                      controls-position="right"
-                    />
-                    <span>MB 到</span>
-                    <el-input-number
-                      v-model="filters.maxSize"
-                      :min="0"
-                      :step="1"
-                      size="small"
-                      controls-position="right"
-                    />
-                    <span>MB</span>
-                  </div>
-                </div>
-                
-                <!-- 上传日期筛选 -->
-                <div class="filter-group">
-                  <h4>上传日期</h4>
-                  <el-radio-group v-model="filters.dateRange">
-                    <el-radio label="today">今天</el-radio>
-                    <el-radio label="week">本周</el-radio>
-                    <el-radio label="month">本月</el-radio>
-                    <el-radio label="custom">自定义</el-radio>
-                  </el-radio-group>
-                  
-                  <div v-if="filters.dateRange === 'custom'" class="custom-date-range">
-                    <el-date-picker
-                      v-model="filters.dateStart"
-                      type="date"
-                      placeholder="开始日期"
-                      size="small"
-                      style="width: 150px"
-                    />
-                    <span>至</span>
-                    <el-date-picker
-                      v-model="filters.dateEnd"
-                      type="date"
-                      placeholder="结束日期"
-                      size="small"
-                      style="width: 150px"
-                    />
-                  </div>
-                </div>
-                
-                <!-- 认证状态筛选 -->
-                <div class="filter-group">
-                  <h4>认证状态</h4>
-                  <el-radio-group v-model="filters.certificationStatus">
-                    <el-radio label="all">全部</el-radio>
-                    <el-radio label="certified">已认证</el-radio>
-                    <el-radio label="uncertified">未认证</el-radio>
-                  </el-radio-group>
-                </div>
-                
-                <!-- 排序选项 -->
-                <div class="filter-group">
-                  <h4>排序方式</h4>
-                  <el-select v-model="sortOption" placeholder="选择排序方式" style="width: 100%">
-                    <el-option 
-                      v-for="option in sortOptions" 
-                      :key="option.value" 
-                      :label="option.label" 
-                      :value="option.value"
-                    />
-                  </el-select>
-                </div>
-                
-                <!-- 筛选按钮 -->
-                <div class="filter-actions">
-                  <el-button type="primary" @click="applyFilters">应用筛选</el-button>
-                  <el-button @click="resetFilters">重置</el-button>
-                </div>
-              </div>
-            </el-collapse-item>
-          </el-collapse>
-        </div>
-        
-        <!-- 已选筛选条件标签 -->
-        <div class="selected-filters" v-if="hasActiveFilters">
-          <span class="filter-label">已选筛选:</span>
-          <el-tag 
-            v-if="searchQuery"
-            closable
-            @close="searchQuery = ''; handleSearch()"
-          >
-            关键词: {{ searchQuery }}
-          </el-tag>
-          <el-tag 
-            v-for="type in filters.fileTypes" 
-            :key="'type-'+type"
-            closable
-            @close="removeFileTypeFilter(type)"
-          >
-            文件类型: {{ getFileTypeLabel(type) }}
-          </el-tag>
-          <el-tag 
-            v-if="filters.fileSize !== ''"
-            closable
-            @close="filters.fileSize = ''"
-          >
-            文件大小: {{ getFileSizeLabel(filters.fileSize) }}
-          </el-tag>
-          <el-tag 
-            v-if="filters.dateRange !== ''"
-            closable
-            @close="filters.dateRange = ''"
-          >
-            日期范围: {{ getDateRangeLabel(filters.dateRange) }}
-          </el-tag>
-          <el-tag 
-            v-if="filters.certificationStatus !== 'all'"
-            closable
-            @close="filters.certificationStatus = 'all'"
-          >
-            认证状态: {{ getCertificationStatusLabel(filters.certificationStatus) }}
-          </el-tag>
-          <el-button size="small" type="info" plain @click="resetFilters">清空全部</el-button>
-        </div>
-        
-        <!-- 筛选结果统计 -->
-        <div class="filter-results-count" v-if="!isLoading">
-          找到 {{ filteredAssets.length }} 个资产
-        </div>
-      </div>
-      
-      <!-- 加载状态 -->
-      <div v-if="isLoading" class="loading-state">
-        <el-skeleton :rows="3" animated />
-      </div>
-      
-      <!-- 资产列表 -->
-      <template v-else>
-        <div class="asset-controls" v-if="filteredAssets.length > 0">
-          <el-button-group>
-            <el-button 
-              type="danger" 
-              :disabled="selectedAssets.length === 0"
-              @click="batchDeleteAssets"
-            >
-              批量删除 ({{ selectedAssets.length }})
-            </el-button>
-          </el-button-group>
-        </div>
-        
-        <el-table 
-          v-loading="isLoading"
-          :data="filteredAssets"
-          stripe
-          style="width: 100%"
-          @selection-change="handleSelectionChange"
-          @sort-change="handleSort"
-          v-if="filteredAssets.length > 0"
-        >
-          <el-table-column type="selection" width="55" />
-          <el-table-column label="资产ID" prop="tokenId" width="80" sortable/>
-          <el-table-column label="文件名" prop="metadata.fileName" min-width="200" show-overflow-tooltip sortable/>
-          <el-table-column label="类型" prop="metadata.fileType" width="120" show-overflow-tooltip/>
-          <el-table-column label="大小" width="100" sortable>
-            <template #default="{ row }">
-              {{ formatFileSize(row.metadata.fileSize || 0) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="登记时间" width="160" sortable>
-            <template #default="{ row }">
-              {{ formatDate(row.registrationDate) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="认证状态" width="100" sortable>
-            <template #default="{ row }">
-              <el-tag :type="row.isCertified ? 'success' : 'warning'">
-                {{ row.isCertified ? '已认证' : '未认证' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="200">
-            <template #default="{ row }">
-                <el-button size="small" @click="viewAssetDetails(row)">查看</el-button>
-                <el-button 
-                  size="small" 
-                  type="primary" 
-                  v-if="!row.isCertified"
-                @click="initiateCertification(row)"
-              >
-                认证
-              </el-button>
-              <el-button 
-                size="small" 
-                type="danger" 
-                @click="deleteAsset(row)"
-              >
-                删除
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <!-- 无数据状态 -->
-        <div v-else class="empty-state">
-          <div v-if="hasActiveFilters">
-            <el-empty description="没有符合筛选条件的资产" />
-            <el-button type="info" @click="resetFilters">清除筛选条件</el-button>
-        </div>
-          <div v-else>
-            <el-empty description="暂无资产" />
-            <el-button type="primary" @click="activeTab = 'register'">注册新资产</el-button>
+      <Suspense>
+        <template #default>
+          <AssetList />
+        </template>
+        <template #fallback>
+          <div class="loading-state">
+            <el-skeleton :rows="3" animated />
+          </div>
+        </template>
+      </Suspense>
     </div>
-      </div>
-
-        <!-- 分页组件 -->
-        <div class="pagination-container">
-          <el-pagination
-            v-if="assetsPagination.totalCount > 0"
-            layout="prev, pager, next"
-            :total="assetsPagination.totalCount"
-            :current-page="assetsPagination.currentPage"
-            :page-size="assetsPagination.pageSize"
-            @current-change="changePage"
-          />
-        </div>
-      </template>
-      </div>
 
     <!-- 资产登记 -->
     <div v-if="activeTab === 'register'" class="register-section">
@@ -308,344 +52,51 @@
       />
     </div>
 
-    <!-- 资产认证记录 -->
     <div v-if="activeTab === 'certification'" class="certification-section">
       <div class="section-header">
         <h2 class="section-title" data-text="资产认证记录">资产认证记录</h2>
       </div>
-      
-      <!-- 认证记录筛选区 -->
-      <div class="search-filter-container">
-        <!-- 搜索框 -->
-        <div class="search-box">
-          <el-input
-            v-model="certSearchQuery"
-            placeholder="搜索资产ID或认证者地址..."
-            clearable
-            prefix-icon="el-icon-search"
-            @input="handleCertSearch"
+      <Suspense>
+        <template #default>
+          <AssetCertificationRecordsDialog 
+            :visible="true"
+            @view-asset="viewAssetById"
           />
-        </div>
-        
-        <!-- 筛选选项 -->
-        <div class="filter-row">    
-          <div class="filter-group">
-            <span class="filter-label">时间范围:</span>
-            <el-date-picker
-              v-model="certDateRange"
-              type="daterange"
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              format="YYYY-MM-DD"
-              value-format="YYYY-MM-DD"
-              style="width: 280px"
-            />
+        </template>
+        <template #fallback>
+          <div class="loading-state">
+            <el-skeleton :rows="3" animated />
           </div>
-          
-          <div class="filter-group">
-            <el-button type="primary" @click="fetchCertificationRecords">筛选</el-button>
-            <el-button @click="resetCertFilters">重置</el-button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- 认证记录表格 -->
-      <el-table
-        v-loading="loadingCertRecords"
-        :data="filteredCertRecords"
-        stripe
-        style="width: 100%"
-        @sort-change="handleCertSort"
-        v-if="filteredCertRecords.length > 0"
-      >
-        <el-table-column label="资产ID" prop="tokenId" width="100" sortable>
-          <template #default="{ row }">
-            <el-tooltip :content="'查看资产详情'" placement="top">
-              <span class="link-text" @click="viewAssetById(row.tokenId)">{{ row.tokenId }}</span>
-            </el-tooltip>
-          </template>
-        </el-table-column>
-        <el-table-column label="认证者" min-width="220">
-          <template #default="{ row }">
-            <div class="certifier-info-row">
-              <el-tooltip :content="row.certifierAddress" placement="top">
-                <span class="certifier-address">{{ formatAddress(row.certifierAddress) }}</span>
-              </el-tooltip>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="认证时间" width="180" sortable>
-          <template #default="{ row }">
-            {{ formatDate(row.certificationTime) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="交易哈希" min-width="220">
-          <template #default="{ row }">
-            <div v-if="row.transactionHash">
-              <el-tooltip :content="row.transactionHash" placement="top">
-                <span class="txhash-text" @click="openExplorer(row.transactionHash)">
-                  {{ formatAddress(row.transactionHash) }}
-                </span>
-              </el-tooltip>
-            </div>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150">
-          <template #default="{ row }">
-            <el-button size="small" @click="viewAssetById(row.tokenId)">查看详情</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      
-      <!-- 无数据状态 -->
-      <div v-else-if="!loadingCertRecords" class="empty-state">
-        <el-empty description="暂无认证记录" />
-      </div>
-      
-      <!-- 分页 -->
-      <div class="pagination-container" v-if="totalCertRecords > 0">
-        <el-pagination
-          layout="total, prev, pager, next"
-          :total="totalCertRecords"
-          :current-page="certCurrentPage"
-          :page-size="certPageSize"
-          @current-change="handleCertPageChange"
-        />
-      </div>
+        </template>
+      </Suspense>
     </div>
-
-    <!-- 全局状态提示 -->
-    <div v-if="errorMessage" class="error-message">
-      {{ errorMessage }}
-    </div>
-
-    <!-- 删除确认对话框 -->
-    <el-dialog
-      v-model="deleteDialogVisible"
-      title="确认删除资产"
-      width="30%"
-    >
-      <div class="delete-confirmation">
-        <p>您确定要删除以下资产吗？此操作不可撤销。</p>
-        <div v-if="assetToDelete" class="asset-to-delete">
-          <p><strong>资产ID:</strong> {{ assetToDelete.tokenId }}</p>
-          <p><strong>文件名:</strong> {{ assetToDelete.metadata.fileName }}</p>
-          <p><strong>注册时间:</strong> {{ formatDate(assetToDelete.registrationDate) }}</p>
-  </div>
-        <div class="safety-check">
-          <p>请输入"DELETE"以确认删除:</p>
-          <el-input v-model="deleteConfirmText" placeholder="请输入DELETE"></el-input>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="deleteDialogVisible = false">取消</el-button>
-          <el-button
-            type="danger"
-            :disabled="deleteConfirmText !== 'DELETE' || isDeleting"
-            @click="confirmDelete"
-          >
-            <span v-if="!isDeleting">确认删除</span>
-            <span v-else>删除中...</span>
-          </el-button>
-        </span>
-</template>
-    </el-dialog>
-
-    <!-- 批量删除确认对话框 -->
-    <el-dialog
-      v-model="batchDeleteDialogVisible"
-      title="确认批量删除资产"
-      width="40%"
-    >
-      <div class="delete-confirmation">
-        <p>您确定要删除以下 {{ selectedAssets.length }} 个资产吗？此操作不可撤销。</p>
-        <div class="selected-assets-list">
-          <el-scrollbar max-height="200px">
-            <ul>
-              <li v-for="asset in selectedAssets" :key="asset.tokenId">
-                ID: {{ asset.tokenId }} - {{ asset.metadata.fileName }}
-              </li>
-            </ul>
-          </el-scrollbar>
-        </div>
-        <div class="safety-check">
-          <p>请输入"DELETE"以确认批量删除:</p>
-          <el-input v-model="batchDeleteConfirmText" placeholder="请输入DELETE"></el-input>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="batchDeleteDialogVisible = false">取消</el-button>
-          <el-button
-            type="danger"
-            :disabled="batchDeleteConfirmText !== 'DELETE' || isBatchDeleting"
-            @click="confirmBatchDelete"
-          >
-            <span v-if="!isBatchDeleting">确认删除</span>
-            <span v-else>删除中 ({{ deletedCount }}/{{ selectedAssets.length }})...</span>
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- 资产详情模态框 -->
-    <asset-detail-dialog
-      v-if="assetDetails"
-      v-model:visible="detailsDialogVisible"
-      :asset-details="assetDetails"
-      :asset-preview-url="assetPreviewUrl"
-      @close="closeAssetDetails"
-    >
-      <!-- 添加操作按钮插槽 -->
-      <template #footer>
-        <div class="asset-actions">
-          <el-button
-            type="primary"
-            @click="downloadAsset(assetDetails)"
-          >
-            下载文件
-          </el-button>
-          <el-button
-            v-if="!assetDetails.isCertified"
-            type="success"
-            @click="initiateCertificationFromDetails()"
-          >
-            申请认证
-          </el-button>
-          <el-button
-            type="danger"
-            @click="deleteFromDetails()"
-          >
-            删除资产
-          </el-button>
-        </div>
-      </template>
-    </asset-detail-dialog>
-
-    <!-- 资产认证请求对话框 -->
-    <el-dialog
-      v-model="certificationRequestDialogVisible"
-      title="请求资产认证"
-      width="600px"
-      destroy-on-close
-    >
-      <div v-if="selectedAssetForCert">
-        <p>您正在为以下资产请求认证：</p>
-        <div class="cert-asset-info">
-          <p><strong>资产ID：</strong> {{ selectedAssetForCert.tokenId }}</p>
-          <p><strong>文件名：</strong> {{ selectedAssetForCert.metadata.fileName }}</p>
-          <p><strong>文件类型：</strong> {{ selectedAssetForCert.metadata.fileType }}</p>
-        </div>
-
-        <!-- 认证状态展示 -->
-        <div class="certification-status">
-          <h3>认证状态</h3>
-          <div v-loading="isLoadingStatus" class="status-list">
-            <template v-if="certificationStatus.length > 0">
-              <div v-for="status in certificationStatus" :key="status.certifierAddress" class="status-item">
-                <div class="certifier-info">
-                  <span class="certifier-name">{{ status.certifierName || formatAddress(status.certifierAddress) }}</span>
-                  <span class="certifier-address">{{ formatAddress(status.certifierAddress) }}</span>
-                </div>
-                <div class="status-badge" :class="status.status.toLowerCase()">
-                  {{ status.status === 'PENDING' ? '待认证' : 
-                     status.status === 'APPROVED' ? '已通过' : 
-                     status.status === 'REJECTED' ? '已拒绝' : '已完成' }}
-                </div>
-                <div v-if="status.timestamp" class="status-time">
-                  {{ formatDate(new Date(status.timestamp)) }}
-                </div>
-                <div v-if="status.reason" class="status-reason">
-                  {{ status.reason }}
-                </div>
-              </div>
-            </template>
-            <div v-else class="no-status">
-              <p>暂无认证记录</p>
-              <p v-if="!selectedAssetForCert.isCertified">您可以提交认证请求，选择认证者进行资产认证</p>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 认证表单 -->
-        <div v-if="!selectedAssetForCert.isCertified" class="cert-form">
-          <h3>提交认证申请</h3>
-          <div class="form-group">
-            <label>认证说明:</label>
-            <el-input 
-              v-model="certifyRequest.reason"
-              type="textarea"
-              :rows="4"
-              placeholder="请详细说明认证请求的原因和资产的真实性..."
-            />
-          </div>
-
-          <div class="form-group">
-            <label>选择认证者 (至少选择2位):</label>
-            <el-select
-              v-model="certifyRequest.approvers"
-              multiple
-              filterable
-              placeholder="请选择认证者"
-              :loading="loadingCertifiers"
-              style="width: 100%;"
-            >
-              <el-option
-                v-for="certifier in availableCertifiers"
-                :key="certifier.address"
-                :label="`${certifier.name || '未命名认证者'} (${formatAddress(certifier.address)})`"
-                :value="certifier.address"
-              />
-            </el-select>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="certificationRequestDialogVisible = false">关闭</el-button>
-          <el-button 
-            v-if="canAutoCertify"
-            type="success" 
-            :loading="isCertifying" 
-            @click="handleAutoCertify"
-          >自动认证</el-button>
-          <el-button 
-            v-if="selectedAssetForCert && !selectedAssetForCert.isCertified"
-            type="primary" 
-            :loading="isCertifying" 
-            :disabled="!isCertifyFormValid" 
-            @click="handleCertification"
-          >提交认证请求</el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { ElMessage, ElDialog, ElMessageBox } from 'element-plus'
 import { getDigitalAssetService } from '@/utils/web3/DigitalAssetService'
-import type { CertificationRequest } from '@/utils/web3/DigitalAssetService'
 import { ethers } from 'ethers'
 import { RBACService, getRBACService } from '@/utils/web3/RBACService'
-import { create } from 'ipfs-http-client'
+import { Suspense } from 'vue'
 
 import FileUpload from '@/components/upload/FileUpload.vue'
+import AssetCertificationRecordsDialog from '@/components/AssetCertificationRecordsDialog.vue'
 import axios from 'axios'
 import { useUserStore } from '@/stores/user'
-import AssetDetailDialog from '@/components/AssetDetailDialog.vue'
 import { useWalletStore } from '@/stores/wallet'
 import { debounce } from 'lodash'
+import AssetList from '@/views/asset/AssetList.vue'
+
+interface CertificationRequest {
+  tokenId: number
+  reason: string
+  approvers: string[]
+}
 
 const userStore = useUserStore()
 const walletStore = useWalletStore()
-const ipfs = create({
-  url: import.meta.env.VITE_IPFS_API_URL  //  自动注入环境变量
-})
 
 // 标签页配置
 const tabs = [
@@ -661,19 +112,9 @@ const certifyRequest = ref<CertificationRequest>({
   reason: '',
   approvers: []
 });
-const isCertifying = ref(false)
 
 // 错误处理
 const errorMessage = ref('')
-
-// 表单验证
-const isCertifyFormValid = computed(() => {
-  return (
-    certifyRequest.value.tokenId !== null &&
-    certifyRequest.value.reason.trim() !== '' &&
-    certifyRequest.value.approvers.length >= 2
-  );
-});
 
 // 认证者列表和加载状态
 const availableCertifiers = ref<{address: string; name?: string}[]>([]);
@@ -725,88 +166,13 @@ const fetchAvailableCertifiers = async () => {
   }
 };
 
-// 格式化钱包地址显示
-const formatAddress = (address: string) => {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-};
 
-// // 在组件加载时获取认证者列表
-// onMounted(() => {
-//   fetchAvailableCertifiers();
-// });
 
 // 当标签页切换时执行相应操作
 watch(activeTab, (newTab) => {
   if (newTab === 'register') {
-    // 注册相关操作
   }
 });
-
-// 处理认证请求提交
-const handleCertification = async () => {
-  if (!isCertifyFormValid.value) {
-    ElMessage.warning('请完成所有必填项并选择至少两位认证者');
-    return;
-  }
-  
-  isCertifying.value = true;
-  try {
-    // 获取基本请求信息
-    const baseRequest = {
-      tokenId: Number(certifyRequest.value.tokenId),
-      reason: certifyRequest.value.reason,
-      requester: userStore.profile?.walletAddress,
-      requestDate: new Date(),
-    };
-    
-    console.log("请求者地址：" + userStore.profile?.walletAddress);
-    
-    // 为每个approver创建单独的请求
-    const token = userStore.profile?.token || '';
-    const requests = certifyRequest.value.approvers.map(approver => ({
-      ...baseRequest,
-      certifierAddress: approver // 每个请求只包含一个认证者
-    }));
-    console.log("token", token)
-    // 并行发送所有请求
-    const responses = await Promise.all(
-      requests.map(request => 
-        axios.post('/api/certification/request', request, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-      )
-    );
-    
-    // 检查所有请求是否成功
-    const allSuccess = responses.every(response => response.data.success);
-    
-    if (allSuccess) {
-      ElMessage.success('所有认证请求已提交');
-      // 重置表单
-      certifyRequest.value = {
-        tokenId: 0 ,
-        reason: '',
-        approvers: []
-      };
-      
-      // 关闭对话框
-      certificationRequestDialogVisible.value = false;
-      
-      // 刷新认证状态
-      if (selectedAssetForCert.value) {
-        await fetchCertificationStatus(Number(selectedAssetForCert.value.tokenId));
-      }
-    } else {
-      throw new Error('部分请求提交失败');
-    }
-  } catch (error: any) {
-    console.error('提交认证请求失败:', error);
-    ElMessage.error('提交认证请求失败: ' + (error.message || '未知错误'));
-  } finally {
-    isCertifying.value = false;
-  }
-};
 
 // 统一错误处理
 const handleServiceError = (error: any) => {
@@ -857,17 +223,16 @@ const isLoading = ref(false)
 // 添加权限状态
 const hasRegistrarRole = ref(false);
 
-// onMounted(async () => {
-//   await fetchUserAssets()
-//   await checkRole()
-//   fetchAvailableCertifiers();
-// })
-
-const fetchUserAssets = async (page = 1, forceRefresh = false) => {
+const fetchUserAssets = async (page: number, forceRefresh: boolean = false) => {
   try {
     isLoading.value = true;
     const service = await getDigitalAssetService();
-    const result = await service.getUserAssets(page, assetsPagination.value.pageSize, forceRefresh);
+    const result = await service.getUserAssetsWithPagination(
+      walletStore.address,
+      page,
+      assetsPagination.value.pageSize,
+      forceRefresh
+    );
     
     // 更新分页信息
     assetsPagination.value = {
@@ -885,10 +250,6 @@ const fetchUserAssets = async (page = 1, forceRefresh = false) => {
   }
 };
 
-// 资产列表相关函数
-const changePage = async (page: number) => {
-  await fetchUserAssets(page, false) // 翻页时不需要强制刷新
-}
 
 const formatDate = (date: Date) => {
   if (!date) return '未知';
@@ -913,22 +274,21 @@ const isLoadingPreview = ref(false);
 const fullImageVisible = ref(false); // 控制全屏预览对话框
 const iframeLoadFailed = ref(false); // 控制是否显示备用图片预览
 
-// 查看资产详情
+
 const viewAssetDetails = async (asset: Asset) => {
-  assetDetails.value = asset;
-  detailsDialogVisible.value = true;
-  
-  // 重置状态
-  iframeLoadFailed.value = false;
-  
-  // 尝试获取预览URL
-  await generatePreviewUrl(asset);
+  try {
+    selectedAsset.value = asset;
+    showAssetDetail.value = true;
+    console.log("asset", asset)
+    
+    // 使用generatePreviewUrl生成预览
+    await generatePreviewUrl(asset);
+  } catch (error) {
+    console.error('查看资产详情失败:', error);
+    ElMessage.error('查看资产详情失败');
+  }
 };
 
-// 显示全屏图片
-const showFullImage = () => {
-  fullImageVisible.value = true;
-};
 
 // 生成资产预览URL - 增强版，支持分片文件处理
 const generatePreviewUrl = async (asset: Asset) => {
@@ -1162,7 +522,7 @@ const initiateCertification = (asset: Asset) => {
 }
 
 // 修改 checkRole 函数
-const checkRole = async () => {
+const checkRoleRegistrar = async () => {
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
   const rbacService = new RBACService(provider, signer);
@@ -1226,7 +586,7 @@ const confirmDelete = async () => {
     deleteDialogVisible.value = false
     
     // 刷新资产列表
-    await fetchUserAssets()
+    await fetchUserAssets(assetsPagination.value.currentPage)
   } catch (error) {
     handleServiceError(error)
   } finally {
@@ -1319,7 +679,7 @@ const confirmBatchDelete = async () => {
     selectedAssets.value = []
     
     // 刷新资产列表
-    await fetchUserAssets()
+    await fetchUserAssets(assetsPagination.value.currentPage)
   } catch (error) {
     console.error('批量删除错误:', error)
     errorMessage.value = error instanceof Error ? error.message : '批量删除过程中发生错误'
@@ -1699,54 +1059,6 @@ const canAutoCertify = computed(() => {
          certificationStatus.value.every(status => status.status === 'APPROVED');
 });
 
-// 自动认证
-const handleAutoCertify = async () => {
-  if (!canAutoCertify.value || !selectedAssetForCert.value) return;
-  
-  isCertifying.value = true;
-  try {
-    // 确认用户是否要进行自动认证
-    await ElMessageBox.confirm(
-      '您确定要使用所有认证者的评论自动认证此资产吗？此操作将调用智能合约，需要支付gas费用。',
-      '自动认证确认',
-      {
-        confirmButtonText: '确认认证',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-    
-    const service = await getDigitalAssetService();
-
-    try {
-      debugger;
-      await service.certifyAsset(userStore.profile?.token || '', {
-        tokenId: parseInt(selectedAssetForCert.value.tokenId),
-        reason: '所有认证者已通过，执行自动认证',
-        approvers: certificationStatus.value.map(status => status.certifierAddress)
-      });
-      
-      ElMessage.success('资产自动认证成功');
-      certificationRequestDialogVisible.value = false;
-      // 刷新资产列表
-      fetchAssets();
-    } catch (dryRunError: any) {
-      console.error('自动认证参数验证失败:', dryRunError);
-      ElMessage.error('自动认证参数验证失败: ' + (dryRunError.message || '未知错误'));
-      throw dryRunError;
-    }
-  } catch (error: any) {
-    if (error === 'cancel') {
-      ElMessage.info('已取消自动认证');
-    } else {
-      console.error('自动认证失败:', error);
-      ElMessage.error(error.message || '自动认证失败');
-    }
-  } finally {
-    isCertifying.value = false;
-  }
-};
-
 // 监听选中的资产变化
 watch(() => selectedAssetForCert.value, (newVal) => {
   if (newVal) {
@@ -1754,97 +1066,6 @@ watch(() => selectedAssetForCert.value, (newVal) => {
   }
 });
 
-// 添加fetchAssets函数定义
-const fetchAssets = async () => {
-  await fetchUserAssets(1, true);
-};
-
-// 添加资产认证记录相关数据和方法
-const certificationRecords = ref<any[]>([]);
-const certSearchQuery = ref('');
-const certDateRange = ref(null);
-const certCurrentPage = ref(1);
-const certPageSize = ref(10);
-const totalCertRecords = ref(0);
-const loadingCertRecords = ref(false);
-
-// 计算过滤后的认证记录
-const filteredCertRecords = computed(() => {
-  if (!certSearchQuery.value) {
-    return certificationRecords.value;
-  }
-  
-  const query = certSearchQuery.value.toLowerCase();
-  return certificationRecords.value.filter(record => 
-    record.tokenId.toString().includes(query) ||
-    record.certifierAddress.toLowerCase().includes(query)
-  );
-});
-
-// 获取认证记录列表
-const fetchCertificationRecords = async () => {
-  loadingCertRecords.value = true
-  try {
-    const token = userStore.profile?.token || ''
-    const params = new URLSearchParams()
-    params.append('page', certCurrentPage.value.toString())
-    params.append('pageSize', certPageSize.value.toString())
-    
-    if (certDateRange.value && certDateRange.value[0] && certDateRange.value[1]) {
-      params.append('startDate', certDateRange.value[0])
-      params.append('endDate', certDateRange.value[1])
-    }
-
-    const response = await axios.get(`/api/certification/records?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    
-    // 适配新的返回格式: { "content": [...], "total": n }
-    if (response.data) {
-      certificationRecords.value = response.data.content || []
-      totalCertRecords.value = response.data.total || 0
-    } else {
-      throw new Error('获取认证记录失败: 返回数据格式错误')
-    }
-  } catch (error: any) {
-    console.error('获取认证记录失败:', error)
-    ElMessage.error('获取认证记录失败: ' + (error.message || '未知错误'))
-    certificationRecords.value = []
-    totalCertRecords.value = 0
-  } finally {
-    loadingCertRecords.value = false
-  }
-}
-
-// 重置认证记录筛选
-const resetCertFilters = () => {
-  certSearchQuery.value = '';
-  certDateRange.value = null;
-  fetchCertificationRecords();
-};
-
-// 处理认证记录搜索
-const handleCertSearch = debounce(() => {
-  if (!certSearchQuery.value) {
-    // 如果搜索框为空，显示所有记录
-    return;
-  }
-  
-  const query = certSearchQuery.value.toLowerCase();
-  // 重新获取记录，应用搜索过滤
-  fetchCertificationRecords();
-}, 300);
-
-// 处理认证记录排序
-const handleCertSort = ({ prop, order }: { prop: string, order: string }) => {
-  console.log('排序:', prop, order)
-}
-
-// 处理认证记录分页变化
-const handleCertPageChange = (page: number) => {
-  certCurrentPage.value = page
-  fetchCertificationRecords()
-}
 
 // 查看资产详情（通过ID）
 const viewAssetById = async (tokenId: string | number) => {
@@ -1863,62 +1084,8 @@ const viewAssetById = async (tokenId: string | number) => {
   }
 }
 
-// 在区块链浏览器中打开交易详情
-const openExplorer = (txHash: string) => {
-  if (!txHash) return
-  
-  // 假设我们从钱包中获取当前网络信息
-  const networkId = walletStore.chainId?.toString() || '1' // 默认以太坊主网
-  
-  // 根据网络ID选择合适的区块链浏览器
-  let explorerUrl = ''
-  
-  if (networkId === '1') {
-    // 以太坊主网
-    explorerUrl = `https://etherscan.io/tx/${txHash}`
-  } else if (networkId === '5') {
-    // Goerli测试网
-    explorerUrl = `https://goerli.etherscan.io/tx/${txHash}`
-  } else if (networkId === '11155111') {
-    // Sepolia测试网
-    explorerUrl = `https://sepolia.etherscan.io/tx/${txHash}`
-  } else if (networkId === '137') {
-    // Polygon主网
-    explorerUrl = `https://polygonscan.com/tx/${txHash}`
-  } else if (networkId === '80001') {
-    // Polygon Mumbai测试网
-    explorerUrl = `https://mumbai.polygonscan.com/tx/${txHash}`
-  } else {
-    // 其他网络或自定义网络
-    explorerUrl = `https://etherscan.io/tx/${txHash}` // 默认使用以太坊主网
-  }
-  
-  window.open(explorerUrl, '_blank')
-}
-
-// 查看认证详情
-const viewCertificationDetail = (certRecord: any) => {
-  // 如果有资产ID，可以打开资产认证对话框
-  if (certRecord.tokenId) {
-    ElMessage.info(`查看资产 ${certRecord.tokenId} 的认证详情`);
-    // 根据实际需要，这里可能会打开一个对话框或跳转页面
-    viewAssetById(certRecord.tokenId);
-  }
-};
-
-// 在组件挂载时获取认证记录
 onMounted(async () => {
-  await fetchUserAssets()
-  await checkRole()
-  fetchAvailableCertifiers()
-  fetchCertificationRecords()
-})
-
-// 确保在切换到认证记录标签页时加载数据
-watch(activeTab, (newTab) => {
-  if (newTab === 'certification') {
-    fetchCertificationRecords()
-  }
+  await checkRoleRegistrar()
 })
 
 
@@ -1938,1467 +1105,184 @@ const getAssetByTokenId = async (service: any, tokenId: string | number) => {
   }
 }
 
-// // 提交认证申请
-// const submitCertificationRequest = async () => {
-//   if (!selectedAssetForCert.value) return;
-  
-//   try {
-//     isSubmitting.value = true;
-//     const service = getDigitalAssetService();
-//     if (service) {
-//       const response = await service.submitCertificationRequest({
-//         tokenId: Number(certifyRequest.value.tokenId),
-//         reason: certifyRequest.value.reason,
-//         approvers: certifyRequest.value.approvers
-//       });
-//       if (response && response.success) {
-//         ElMessage.success('认证申请已提交');
-//         certificationRequestDialogVisible.value = false;
-        
-//         // 刷新认证状态
-//         await fetchCertificationStatus(Number(selectedAssetForCert.value.tokenId));
-        
-//         if (currentTab.value === 'certification') {
-//           // 如果当前是认证记录标签，就刷新记录
-//           fetchCertificationRecords(1, true);
-//         } else {
-//           // 如果在资产管理标签，刷新资产列表
-//           fetchUserAssets(1, true);
-//         }
-//       }
-//     }
-//   } catch (error: any) {
-//     ElMessage.error(`提交认证申请失败: ${error.message || '未知错误'}`);
-//   } finally {
-//     isSubmitting.value = false;
-//   }
-// };
+// 资产详情对话框
+const showAssetDetail = ref(false);
+const selectedAsset = ref<any>(null);
 
+// 组件卸载时清理
+onUnmounted(() => {
+  if (assetPreviewUrl.value) {
+    URL.revokeObjectURL(assetPreviewUrl.value);
+  }
+});
+
+// 添加注释，仅用于查看文件结构
 </script>
-
-<style lang="scss" scoped>
+<style scoped>
+/* 基础布局样式 */
 .access-management {
-  max-width: 100%; /* 修改为100%以消除两侧白边 */
-  margin: 0 auto;
-  padding: 2rem;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   position: relative;
-  color: #e6f1ff;
-  background: #0a192f;
-  border-radius: 0; /* 移除圆角 */
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  margin-top: 0; /* 移除顶部边距 */
-  margin-bottom: 0; /* 移除底部边距 */
-  overflow-x: hidden; /* 防止水平滚动 */
-  min-height: calc(100vh - 70px); /* 确保最小高度填满视口 */
+  min-height: 100vh;
+  padding: 2rem;
+  overflow: hidden;
 }
 
-/* 二进制背景 */
+/* 动态二进制背景 */
 .binary-background {
   position: absolute;
-  top: 0;
-  left: 0;
   width: 100%;
   height: 100%;
-  overflow: hidden;
+  top: 0;
+  left: 0;
   z-index: 0;
-  opacity: 0.08;
   pointer-events: none;
 }
 
 .binary-bit {
   position: absolute;
+  color: rgba(0, 0, 0, 0.15);
   font-family: monospace;
-  font-size: 1.2rem;
-  color: #64ffda;
-  animation: fadeInOut 8s infinite;
+  font-size: 0.8rem;
+  opacity: 0;
+  animation: fadeMove 8s infinite linear;
 }
 
-@keyframes fadeInOut {
-  0%, 100% { opacity: 0; }
-  50% { opacity: 1; }
+@keyframes fadeMove {
+  0% {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
 }
 
+/* 标签导航 */
 .tab-nav {
+  position: relative;
+  z-index: 1;
   display: flex;
   gap: 1rem;
   margin-bottom: 2rem;
-  border-bottom: 1px solid rgba(100, 255, 218, 0.2);
-  padding-bottom: 1rem;
-  position: relative;
-  z-index: 1;
 }
 
 .tab-btn {
-  position: relative;
-  padding: 0.8rem 1.5rem;
-  font-size: 1rem;
-  color: #8892b0;
-  background: transparent;
-  border: none;
+  padding: 0.75rem 2rem;
+  border: 2px solid #ddd;
+  background: #f8f8f8;
+  border-radius: 30px;
+  font-weight: 600;
+  color: #444;
   cursor: pointer;
-  transition: all 0.3s ease;
-  
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: -1rem;
-    left: 0;
-    width: 100%;
-    height: 2px;
-    background: #64ffda;
-    transform: scaleX(0);
-    transition: transform 0.3s ease;
-  }
-  
-  &:hover {
-    color: #64ffda;
-  }
-  
-  &:hover::after,
-  &.active::after {
-    transform: scaleX(1);
-  }
-  
-  &.active {
-    font-weight: 600;
-    color: #64ffda;
-  }
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.tab-btn.active {
+  background: #fff;
+  border-color: #333;
+  color: #000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 内容区块通用样式 */
+.assets-section,
+.register-section,
+.certification-section {
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-top: 1rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: opacity 0.3s ease;
 }
 
 .section-header {
   margin-bottom: 2rem;
   position: relative;
-  z-index: 1;
 }
 
 .section-title {
-  font-size: 2.2rem;
-  font-weight: 700;
-  margin-bottom: 2rem;
-  color: #ccd6f6;
+  display: inline-block;
+  font-size: 1.5rem;
+  color: #333;
   position: relative;
-  
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: -10px;
-    left: 0;
-    width: 60px;
-    height: 4px;
-    background: linear-gradient(90deg, #64ffda, transparent);
-  }
+  padding-bottom: 0.5rem;
 }
 
-.glitch-text {
-  position: relative;
-  text-shadow: 0.03em 0 0 rgba(255, 0, 0, 0.4),
-              -0.015em -0.05em 0 rgba(0, 255, 0, 0.4),
-              0.025em 0.05em 0 rgba(0, 0, 255, 0.4);
-}
-
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  position: relative;
-  z-index: 1;
-}
-
-.loading-text {
-  margin-top: 1rem;
-  font-size: 0.9rem;
-  color: #8892b0;
-}
-
-.upload-area {
-  border: 2px dashed #64ffda;
-  border-radius: 12px;
-  padding: 2rem;
-  text-align: center;
-  margin-bottom: 1.5rem;
-  background: rgba(100, 255, 218, 0.05);
-  transition: all 0.3s ease;
-  
-  &:hover {
-    background: rgba(100, 255, 218, 0.1);
-    box-shadow: 0 0 20px rgba(100, 255, 218, 0.2);
-  }
-}
-
-.file-input {
-  display: none;
-}
-
-.upload-label {
-  cursor: pointer;
-  color: #64ffda;
-}
-
-.file-info {
-  margin-top: 1rem;
-}
-
-.options-section {
-  margin-bottom: 2rem;
-}
-
-.metadata-fields {
-  display: grid;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.submit-button {
-  background: transparent;
-  color: #64ffda;
-  padding: 1rem 2rem;
-  border: 1px solid #64ffda;
-  border-radius: 8px;
-  cursor: pointer;
+.section-title::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
   width: 100%;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: rgba(100, 255, 218, 0.1);
-    transition: all 0.5s ease;
-    z-index: -1;
-  }
-  
-  &:hover {
-    color: #0a192f;
-    background-color: #64ffda;
-  }
-  
-  &:hover::before {
-    left: 0;
-  }
+  height: 3px;
+  background: linear-gradient(90deg, #333 50%, transparent 50%);
+  background-size: 8px 100%;
 }
 
-.submit-button:disabled {
-  background: rgba(100, 255, 218, 0.1);
-  color: rgba(100, 255, 218, 0.5);
-  border-color: rgba(100, 255, 218, 0.5);
-  cursor: not-allowed;
-  
-  &:hover {
-    color: rgba(100, 255, 218, 0.5);
-    background: rgba(100, 255, 218, 0.1);
-  }
-  
-  &::before {
-    display: none;
-  }
-}
-
-.error-message {
-  color: #ff5252;
-  padding: 1rem;
-  margin-top: 1rem;
-  border-radius: 8px;
-  background: rgba(255, 82, 82, 0.1);
-  border: 1px solid rgba(255, 82, 82, 0.2);
-  position: relative;
-  z-index: 1;
-}
-
-.certify-form {
-  display: grid;
-  gap: 1.5rem;
-  background: rgba(10, 25, 47, 0.5);
-  padding: 2rem;
-  border-radius: 10px;
-  border: 1px solid rgba(100, 255, 218, 0.2);
-  position: relative;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(45deg, rgba(100, 255, 218, 0.05), transparent);
-    z-index: -1;
-    border-radius: 10px;
-  }
-}
-
-.approver-input {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  
-  input {
-    background: rgba(10, 25, 47, 0.8);
-    border: 1px solid rgba(100, 255, 218, 0.3);
-    color: #e6f1ff;
-    padding: 0.5rem;
-    border-radius: 4px;
-    flex: 1;
-    
-    &:focus {
-      border-color: #64ffda;
-      outline: none;
-      box-shadow: 0 0 5px rgba(100, 255, 218, 0.5);
-    }
-  }
-  
-  button {
-    background: transparent;
-    color: #ff5252;
-    border: 1px solid #ff5252;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    
-    &:hover {
-      background-color: rgba(255, 82, 82, 0.1);
-    }
-  }
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  
-  label {
-    color: #8892b0;
-    font-size: 0.9rem;
-  }
-  
-  input, textarea {
-    background: rgba(10, 25, 47, 0.8);
-    border: 1px solid rgba(100, 255, 218, 0.3);
-    color: #e6f1ff;
-    padding: 0.8rem;
-    border-radius: 4px;
-    
-    &:focus {
-      border-color: #64ffda;
-    }
-  }
-  
-  textarea {
-    min-height: 100px;
-    resize: vertical;
-  }
-}
-
-/* 资产列表样式 */
-.assets-section {
-  margin-top: 1rem;
-  position: relative;
-  z-index: 1;
-}
-
-.search-filter-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  background-color: rgba(10, 25, 47, 0.6);
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(100, 255, 218, 0.2);
-  position: relative;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, rgba(100, 255, 218, 0.05), transparent);
-    z-index: -1;
-    border-radius: 8px;
-  }
-}
-
+/* 加载状态 */
 .loading-state {
-  padding: 20px;
-  background: rgba(10, 25, 47, 0.5);
+  padding: 2rem;
+  background: rgba(255, 255, 255, 0.9);
   border-radius: 8px;
-  border: 1px solid rgba(100, 255, 218, 0.1);
 }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 40px 0;
-  text-align: center;
-  background: rgba(10, 25, 47, 0.5);
-  border-radius: 10px;
-  border: 1px dashed rgba(100, 255, 218, 0.2);
-}
-  
-.pagination-container {
-    margin-top: 20px;
-  display: flex;
-  justify-content: center;
-}
-
-.asset-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.filter-panel {
-  width: 100%;
-  margin-top: 1rem;
-  border-radius: 8px;
-  overflow: hidden;
-  
-  :deep(.el-collapse-item__header) {
-    background-color: rgba(10, 25, 47, 0.8);
-    color: #64ffda;
-    border-bottom: 1px solid rgba(100, 255, 218, 0.2);
-  }
-  
-  :deep(.el-collapse-item__content) {
-    background-color: rgba(10, 25, 47, 0.5);
-    color: #e6f1ff;
-  }
-}
-
-.filter-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1.5rem;
-  padding-top: 1rem;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  
-  h4 {
-    margin: 0;
-    font-size: 14px;
-    color: #64ffda;
-    font-weight: 600;
-  }
-}
-
-.selected-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-  padding: 1rem;
-  background-color: rgba(10, 25, 47, 0.5);
-  border-radius: 4px;
-  align-items: center;
-  border: 1px solid rgba(100, 255, 218, 0.2);
-}
-
-.filter-label {
-  font-weight: 600;
-  color: #64ffda;
-  margin-right: 0.5rem;
-}
-
-.filter-results-count {
-  margin-top: 1rem;
-  text-align: right;
-  font-size: 14px;
-  color: #8892b0;
-}
-
-.asset-controls {
-  margin-bottom: 1rem;
-}
-
-/* 表格样式修复 */
-:deep(.el-table) {
-  background-color: transparent !important; /* 强制透明背景 */
-  color: #e6f1ff !important; /* 强制文字颜色 */
-  
-  th {
-    background-color: rgba(10, 25, 47, 0.8) !important;
-    color: #64ffda !important;
-    font-weight: 600;
-    border-bottom: 1px solid rgba(100, 255, 218, 0.2);
-  }
-  
-  td {
-    background-color: rgba(10, 25, 47, 0.5) !important;
-    border-bottom: 1px solid rgba(100, 255, 218, 0.1);
-  }
-  
-  tr:hover > td {
-    background-color: rgba(100, 255, 218, 0.1) !important;
-    color: #ffffff !important; /* 更亮的文字颜色 */
-    text-shadow: 0 0 2px rgba(0, 0, 0, 0.5); /* 添加文字阴影 */
-    font-weight: 600; /* 加粗文字 */
-  }
-  
-  /* 确保表头和单元格文字清晰可见 */
-  .cell {
-    color: #e6f1ff !important; 
-  }
-  
-  /* 悬停时确保所有内容都保持可见 */
-  tr:hover .cell {
-    color: #ffffff !important;
-  }
-  
-  /* 表格内部组件样式调整 */
-  .el-button {
-    color: #64ffda;
-  }
-  
-  /* 确保表格加载遮罩有正确的颜色 */
-  .el-loading-mask {
-    background-color: rgba(10, 25, 47, 0.7) !important;
-  }
-  
-  /* 修复表格内复选框样式 */
-  .el-checkbox__inner {
-    background-color: rgba(10, 25, 47, 0.5) !important;
-    border-color: rgba(100, 255, 218, 0.3) !important;
-  }
-  
-  .el-checkbox__input.is-checked .el-checkbox__inner {
-    background-color: #64ffda !important;
-    border-color: #64ffda !important;
-  }
-}
-
-/* 增强资产详情内容区域样式 */
-.asset-details-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-  background-color: rgba(10, 25, 47, 0.7);
-  border-radius: 10px;
-  padding: 20px;
-  border: 1px solid rgba(100, 255, 218, 0.2);
-  
-  @media (min-width: 992px) {
-    flex-direction: row;
-  }
-}
-
-.asset-info {
-  flex: 1;
-  margin-bottom: 30px;
-  border-bottom: 1px solid rgba(100, 255, 218, 0.2);
-  padding-bottom: 20px;
-  background-color: rgba(10, 25, 47, 0.5);
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-  .asset-main {
-    display: flex;
-    align-items: center;
-  margin-bottom: 15px;
-  flex-wrap: wrap;
-  gap: 10px;
-  background-color: rgba(10, 25, 47, 0.7);
-  padding: 15px;
-  border-radius: 8px 8px 0 0;
-  border-bottom: 2px solid rgba(100, 255, 218, 0.2);
-}
-    
-    .asset-name {
-  font-size: 24px;
-  font-weight: bold;
-  margin-right: 10px;
-  color: #e6f1ff;
-  position: relative;
-  text-shadow: 0 0 5px rgba(230, 241, 255, 0.3);
-  
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: -5px;
-    left: 0;
-    width: 100%;
-    height: 2px;
-    background: linear-gradient(90deg, #64ffda, transparent);
-    transform: scaleX(0.3);
-    transform-origin: left;
-    transition: transform 0.3s ease;
-  }
-  
-  &:hover::after {
-    transform: scaleX(1);
-    }
-  }
-  
-  .asset-description {
-  color: #8892b0;
-  margin: 20px 0;
-  line-height: 1.6;
-  font-size: 14px;
-  position: relative;
-  padding: 15px;
-  background-color: rgba(10, 25, 47, 0.5);
-  border-radius: 6px;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 3px;
-    height: 100%;
-    background: linear-gradient(to bottom, #64ffda, transparent);
-  }
-}
-
-:deep(.el-descriptions) {
-  background-color: rgba(10, 25, 47, 0.9) !important; /* 加深背景色 */
-  border-radius: 8px;
-  border: 1px solid rgba(100, 255, 218, 0.3) !important; /* 增强边框可见度 */
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); /* 添加阴影增强层次感 */
-  margin-top: 20px; /* 增加顶部间距 */
-  
-  .el-descriptions__header {
-    padding: 12px 20px;
-    border-bottom: 1px solid rgba(100, 255, 218, 0.3) !important;
-    background-color: rgba(10, 25, 47, 0.95) !important; /* 表头背景更深 */
-  }
-  
-  .el-descriptions__label {
-    color: #64ffda !important; /* 更亮的标签颜色 */
-    font-weight: 600 !important;
-    text-shadow: 0 0 3px rgba(100, 255, 218, 0.3); /* 添加文字阴影增强可读性 */
-    background-color: rgba(10, 25, 47, 0.95) !important; /* 标签背景加深 */
-    padding: 12px 15px !important;
-    font-size: 14px !important;
-  }
-  
-  .el-descriptions__content {
-    color: #e6f1ff !important; /* 更亮的内容文字 */
-    background-color: rgba(17, 34, 64, 0.9) !important; /* 内容背景加深且与标签区分 */
-    font-weight: 500 !important;
-    padding: 12px 15px !important;
-    font-size: 14px !important;
-  }
-  
-  .el-descriptions-item__cell {
-    padding: 12px 15px !important;
-    border: 1px solid rgba(100, 255, 218, 0.2) !important; /* 确保边框可见 */
-  }
-  
-  .el-descriptions-item__label {
-    background-color: rgba(10, 25, 47, 0.95) !important; /* 标签背景 */
-  }
-  
-  .el-descriptions-item__content {
-    background-color: rgba(17, 34, 64, 0.9) !important; /* 内容背景 */
-  }
-}
-
-.preview-section {
-  flex: 1;
-    display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  background-color: rgba(10, 25, 47, 0.5);
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  
-  @media (min-width: 992px) {
-    max-width: 50%;
-  }
-}
-
-.loading-preview, .no-preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 250px;
-  border: 1px dashed rgba(100, 255, 218, 0.3);
-  border-radius: 8px;
-  color: #8892b0;
-  margin-bottom: 20px;
-  background-color: rgba(10, 25, 47, 0.7);
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
-  
-  .el-icon {
-    font-size: 40px;
-    margin-bottom: 15px;
-    color: #64ffda;
-  }
-}
-
-/* 响应式样式 */
-@media (max-width: 768px) {
-  .filter-options {
-    grid-template-columns: 1fr;
-  }
-  
-  .selected-filters {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .selected-filters .el-tag {
-    margin-bottom: 0.5rem;
-  }
-  
-  .section-title {
-    font-size: 1.8rem;
-  }
-}
-
-:deep(.el-button) {
-  &.el-button--primary {
-    background-color: transparent;
-    border-color: #64ffda;
-    color: #64ffda;
-    
-    &:hover {
-      background-color: rgba(100, 255, 218, 0.1);
-      border-color: #64ffda;
-      color: #64ffda;
-    }
-    
-    &:focus {
-      background-color: rgba(100, 255, 218, 0.1);
-      border-color: #64ffda;
-      color: #64ffda;
-    }
-  }
-  
-  &.el-button--danger {
-    background-color: transparent;
-    border-color: #ff5252;
-    color: #ff5252;
-    
-    &:hover {
-      background-color: rgba(255, 82, 82, 0.1);
-      border-color: #ff5252;
-      color: #ff5252;
-    }
-  }
-  
-  &.el-button--info {
-    background-color: transparent;
-    border-color: #909399;
-    color: #909399;
-    
-    &:hover {
-      background-color: rgba(144, 147, 153, 0.1);
-      border-color: #909399;
-      color: #909399;
-    }
-  }
-}
-
-:deep(.el-dialog) {
-  background-color: #0a192f !important;
-  border-radius: 12px;
-  border: 1px solid rgba(100, 255, 218, 0.3);
-  box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
-  
-  .el-dialog__header {
-    border-bottom: 1px solid rgba(100, 255, 218, 0.3);
-    background-color: rgba(10, 25, 47, 0.95) !important;
-    border-radius: 12px 12px 0 0;
-    
-    .el-dialog__title {
-      color: #64ffda !important;
-      font-weight: 600;
-      font-size: 1.2rem;
-    }
-    
-    .el-dialog__headerbtn .el-dialog__close {
-      color: #e6f1ff !important;
-      
-      &:hover {
-        color: #64ffda !important;
-      }
-    }
-  }
-  
-  .el-dialog__body {
-    color: #e6f1ff !important;
-    background-color: #0a192f !important;
-    padding: 20px;
-  }
-  
-  .el-dialog__footer {
-    border-top: 1px solid rgba(100, 255, 218, 0.3);
-    background-color: rgba(10, 25, 47, 0.95) !important;
-    border-radius: 0 0 12px 12px;
-    padding: 15px 20px;
-  }
-}
-
-.delete-confirmation {
-  p {
-    color: #e6f1ff;
-  }
-  
-  .asset-to-delete {
-    background-color: rgba(10, 25, 47, 0.5);
-    border-radius: 8px;
-    padding: 1rem;
-    margin: 1rem 0;
-    border: 1px solid rgba(255, 82, 82, 0.2);
-  }
-}
-
-:deep(.el-checkbox) {
-  .el-checkbox__input.is-checked .el-checkbox__inner {
-    background-color: #64ffda;
-    border-color: #64ffda;
-  }
-  
-  .el-checkbox__label {
-    color: #e6f1ff;
-  }
-}
-
-:deep(.el-radio) {
-  .el-radio__input.is-checked .el-radio__inner {
-    background-color: #64ffda;
-    border-color: #64ffda;
-  }
-  
-  .el-radio__label {
-    color: #e6f1ff;
-  }
-}
-
-:deep(.el-input) {
-  .el-input__wrapper {
-    background-color: rgba(10, 25, 47, 0.8) !important;
-    box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.3) !important;
-  }
-  
-  .el-input__inner {
-    background-color: transparent !important;
-    color: #e6f1ff !important;
-  }
-  
-  &.is-focus .el-input__wrapper {
-    box-shadow: 0 0 0 1px #64ffda !important;
-  }
-}
-
-:deep(.el-tag) {
-  &.el-tag--success {
-    background-color: rgba(103, 194, 58, 0.1);
-    border-color: rgba(103, 194, 58, 0.2);
-    color: #67c23a;
-  }
-  
-  &.el-tag--warning {
-    background-color: rgba(230, 162, 60, 0.1);
-    border-color: rgba(230, 162, 60, 0.2);
-    color: #e6a23c;
-  }
-  
-  &.el-tag--info {
-    background-color: rgba(144, 147, 153, 0.1);
-    border-color: rgba(144, 147, 153, 0.2);
-    color: #909399;
-  }
-}
-
-@keyframes glitch {
-  0% {
-    text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75),
-                -0.025em -0.05em 0 rgba(0, 255, 0, 0.75),
-                0.025em 0.05em 0 rgba(0, 0, 255, 0.75);
-  }
-  14% {
-    text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75),
-                -0.025em -0.05em 0 rgba(0, 255, 0, 0.75),
-                0.025em 0.05em 0 rgba(0, 0, 255, 0.75);
-  }
-  15% {
-    text-shadow: -0.05em -0.025em 0 rgba(255, 0, 0, 0.75),
-                0.025em 0.025em 0 rgba(0, 255, 0, 0.75),
-                -0.05em -0.05em 0 rgba(0, 0, 255, 0.75);
-  }
-  49% {
-    text-shadow: -0.05em -0.025em 0 rgba(255, 0, 0, 0.75),
-                0.025em 0.025em 0 rgba(0, 255, 0, 0.75),
-                -0.05em -0.05em 0 rgba(0, 0, 255, 0.75);
-  }
-  50% {
-    text-shadow: 0.025em 0.05em 0 rgba(255, 0, 0, 0.75),
-                0.05em 0 0 rgba(0, 255, 0, 0.75),
-                0 -0.05em 0 rgba(0, 0, 255, 0.75);
-  }
-  99% {
-    text-shadow: 0.025em 0.05em 0 rgba(255, 0, 0, 0.75),
-                0.05em 0 0 rgba(0, 255, 0, 0.75),
-                0 -0.05em 0 rgba(0, 0, 255, 0.75);
-  }
-  100% {
-    text-shadow: -0.025em 0 0 rgba(255, 0, 0, 0.75),
-                -0.025em -0.025em 0 rgba(0, 255, 0, 0.75),
-                -0.025em -0.05em 0 rgba(0, 0, 255, 0.75);
-  }
-}
-
-/* Element Plus 组件全局样式增强 */
-:deep(.el-pagination) {
-  .el-pagination__total,
-  .el-pagination__jump,
-  .btn-prev,
-  .btn-next,
-  .el-pager li {
-    background-color: rgba(10, 25, 47, 0.5) !important;
-    color: #e6f1ff !important;
-    border: 1px solid rgba(100, 255, 218, 0.2) !important;
-  }
-  
-  .el-pager li.is-active {
-    background-color: #64ffda !important;
-    color: #0a192f !important;
-  }
-}
-
-/* 修复按钮组件样式 */
-:deep(.el-button-group) {
-  .el-button {
-    background-color: rgba(10, 25, 47, 0.5) !important;
-    border-color: rgba(100, 255, 218, 0.2) !important;
-    
-    &:hover {
-      background-color: rgba(100, 255, 218, 0.1) !important;
-    }
-  }
-}
-
-/* 修复输入框背景 */
-:deep(.el-input) {
-  .el-input__wrapper {
-    background-color: rgba(10, 25, 47, 0.8) !important;
-    box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.3) !important;
-  }
-  
-  .el-input__inner {
-    background-color: transparent !important;
-    color: #e6f1ff !important;
-  }
-  
-  &.is-focus .el-input__wrapper {
-    box-shadow: 0 0 0 1px #64ffda !important;
-  }
-}
-
-/* 修复下拉选择器 */
-:deep(.el-select) {
-  .el-input__wrapper {
-    background-color: rgba(10, 25, 47, 0.8) !important;
-    box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.3) !important;
-  }
-}
-
-:deep(.el-select-dropdown) {
-  background-color: #0a192f !important;
-  border: 1px solid rgba(100, 255, 218, 0.2) !important;
-  
-  .el-select-dropdown__item {
-    color: #e6f1ff !important;
-    
-    &.selected {
-      color: #64ffda !important;
-      background-color: rgba(100, 255, 218, 0.1) !important;
-    }
-    
-    &:hover {
-      background-color: rgba(100, 255, 218, 0.05) !important;
-    }
-  }
-}
-
-/* 日期选择器样式修复 */
-:deep(.el-date-editor) {
-  .el-input__wrapper {
-    background-color: rgba(10, 25, 47, 0.8) !important;
-    box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.3) !important;
-  }
-}
-
-:deep(.el-picker__popper) {
-  background-color: #0a192f !important;
-  border: 1px solid rgba(100, 255, 218, 0.2) !important;
-  
-  .el-date-table td, .el-date-picker__header {
-    color: #e6f1ff !important;
-  }
-  
-  .el-date-table td.today {
-    color: #64ffda !important;
-  }
-  
-  .el-date-table td.current:not(.disabled) {
-    background-color: #64ffda !important;
-    color: #0a192f !important;
-  }
-}
-
-/* 表格单元格内容对齐 */
-:deep(.el-table__body) td.el-table__cell {
-  padding: 12px 0;
-  
-  .cell {
-    line-height: 1.5;
-  }
-}
-
-/* 自定义滚动条美化 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(10, 25, 47, 0.1);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(100, 255, 218, 0.3);
-  border-radius: 4px;
-  
-  &:hover {
-    background: rgba(100, 255, 218, 0.5);
+/* 打印优化 */
+@media print {
+  .binary-background,
+  .tab-btn:not(.active),
+  .el-skeleton {
+    display: none !important;
   }
-}
 
-/* 优化资产详情中的CID样式 */
-    .cid {
-      font-family: monospace;
-  background-color: rgba(10, 25, 47, 0.9) !important;
-  padding: 5px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: #64ffda !important; /* 更亮的CID文字颜色 */
-  border: 1px solid rgba(100, 255, 218, 0.2);
-  display: inline-block;
-  word-break: break-all;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  
-  &:hover {
-    background-color: rgba(100, 255, 218, 0.2) !important;
-    border-color: #64ffda;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 5px rgba(100, 255, 218, 0.3);
+  .access-management {
+    padding: 0;
   }
-}
 
-/* 提高表格中文字的整体对比度 */
-:deep(.el-table) {
-  --el-table-text-color: #e6f1ff;
-  --el-table-header-text-color: #64ffda;
-  
-  .el-table__header-wrapper th {
-    background-color: rgba(10, 25, 47, 0.9) !important;
-    color: var(--el-table-header-text-color) !important;
-    font-weight: 600;
-  }
-  
-  .el-table__body-wrapper td {
-    color: var(--el-table-text-color) !important;
+  .tab-nav {
+    border-bottom: 2px solid #000;
+    margin-bottom: 1rem;
   }
-}
-
-/* 悬停时确保所有内容都保持可见 */
-tr:hover .cell {
-  color: #ffffff !important;
-}
-
-/* 修复表格行悬停状态下的标签和按钮样式 */
-tr:hover .el-tag {
-  border-width: 2px !important;
-  font-weight: 600 !important;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-}
-
-tr:hover .el-tag--success {
-  background-color: rgba(103, 194, 58, 0.2) !important;
-  border-color: #67c23a !important;
-  color: #ffffff !important;
-}
-
-tr:hover .el-tag--warning {
-  background-color: rgba(230, 162, 60, 0.2) !important;
-  border-color: #e6a23c !important;
-  color: #ffffff !important;
-}
-
-tr:hover .el-tag--info {
-  background-color: rgba(144, 147, 153, 0.2) !important;
-  border-color: #909399 !important;
-  color: #ffffff !important;
-}
-
-tr:hover .el-button {
-  border-width: 2px !important;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-}
 
-tr:hover .el-button--default {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  border-color: #ffffff !important;
-  color: #ffffff !important;
-}
-
-tr:hover .el-button--primary {
-  background-color: rgba(100, 255, 218, 0.2) !important;
-  border-color: #64ffda !important;
-  color: #ffffff !important;
-}
-
-tr:hover .el-button--danger {
-  background-color: rgba(255, 82, 82, 0.2) !important;
-  border-color: #ff5252 !important;
-  color: #ffffff !important;
-}
-
-.image-error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  border: 1px dashed rgba(100, 255, 218, 0.3);
-  border-radius: 8px;
-  color: #8892b0;
-  background-color: rgba(10, 25, 47, 0.7);
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
-  
-  .el-icon {
-    font-size: 40px;
-    margin-bottom: 15px;
-    color: #64ffda;
+  .tab-btn.active {
+    background: transparent !important;
+    border: 2px solid #000 !important;
+    color: #000 !important;
   }
-}
 
-.image-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  border: 1px dashed rgba(100, 255, 218, 0.3);
-  border-radius: 8px;
-  color: #8892b0;
-  background-color: rgba(10, 25, 47, 0.7);
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
-  
-  .el-icon {
-    font-size: 40px;
-    margin-bottom: 15px;
-    color: #64ffda;
+  .assets-section,
+  .register-section,
+  .certification-section {
+    box-shadow: none;
+    background: transparent;
+    padding: 0;
+    page-break-inside: avoid;
   }
-}
 
-.custom-image-preview {
-  width: 100%;
-  margin-bottom: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  overflow: hidden;
-  background-color: rgba(10, 25, 47, 0.5);
-  min-height: 300px;
-}
-
-.preview-image {
-  max-width: 100%;
-  max-height: 400px;
-  object-fit: contain;
-  cursor: zoom-in;
-  border-radius: 4px;
-  transition: transform 0.2s;
-  
-  &:hover {
-    transform: scale(1.02);
+  .section-title::after {
+    background: #000;
   }
-}
-
-.full-image-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  max-height: 80vh;
-  overflow: auto;
-  background-color: rgba(10, 25, 47, 0.9);
-  border-radius: 4px;
-}
-
-.full-image {
-  max-width: 100%;
-  max-height: 80vh;
-  object-fit: contain;
-}
-
-.certifier-option {
-  display: flex;
-  flex-direction: column;
-  padding: 4px 0;
-  width: 100%;
-}
-
-.certifier-name {
-  font-size: 14px;
-  color: #ffffff;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.certifier-address {
-  font-size: 12px;
-  color: #ffffff;
-  margin-top: 2px;
-  font-weight: 500;
-}
-
-.certifier-org {
-  font-size: 12px;
-  color: #67c23a;
-  margin-top: 2px;
-}
-
-/* 添加认证状态样式 */
-.certification-status {
-  margin: 20px 0;
-  padding: 15px;
-  background: rgba(10, 25, 47, 0.7);
-  border-radius: 8px;
-  border: 1px solid rgba(100, 255, 218, 0.2);
-}
-
-.status-list {
-  margin-top: 10px;
-}
-
-.status-item {
-  padding: 15px;
-  border-bottom: 1px solid rgba(100, 255, 218, 0.1);
-  background: rgba(10, 25, 47, 0.5);
-  border-radius: 6px;
-  margin-bottom: 10px;
-}
-
-.status-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-}
-
-.certifier-info {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  color: #e6f1ff;
-}
-
-.certifier-name {
-  font-weight: 600;
-  color: #64ffda;
-}
-
-.certifier-address {
-  color: #ffffff;
-  font-size: 0.9em;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  margin: 8px 0;
-  font-weight: 500;
-}
-
-.status-badge.pending {
-  background: rgba(230, 162, 60, 0.2);
-  color: #e6a23c;
-  border: 1px solid rgba(230, 162, 60, 0.3);
-}
-
-.status-badge.approved {
-  background: rgba(103, 194, 58, 0.2);
-  color: #67c23a;
-  border: 1px solid rgba(103, 194, 58, 0.3);
-}
-
-.status-badge.rejected {
-  background: rgba(245, 108, 108, 0.2);
-  color: #f56c6c;
-  border: 1px solid rgba(245, 108, 108, 0.3);
-}
-
-.status-badge.completed {
-  background: rgba(100, 255, 218, 0.2);
-  color: #64ffda;
-  border: 1px solid rgba(100, 255, 218, 0.3);
-}
-
-.status-time {
-  font-size: 12px;
-  color: #8892b0;
-  margin: 4px 0;
-}
-
-.status-reason {
-  margin-top: 8px;
-  font-size: 13px;
-  color: #e6f1ff;
-  line-height: 1.5;
-  background: rgba(10, 25, 47, 0.3);
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(100, 255, 218, 0.1);
-}
-
-.no-status {
-  text-align: center;
-  color: #8892b0;
-  padding: 20px;
-  background: rgba(10, 25, 47, 0.5);
-  border-radius: 6px;
-  border: 1px dashed rgba(100, 255, 218, 0.2);
 }
 
-.cert-form {
-  margin-top: 20px;
-  padding: 15px;
-  background: rgba(10, 25, 47, 0.7);
-  border-radius: 8px;
-  border: 1px solid rgba(100, 255, 218, 0.2);
+/* 微交互动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
 }
 
-.cert-form h3 {
-  color: #64ffda;
-  margin-bottom: 15px;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.cert-asset-info {
-  background: rgba(10, 25, 47, 0.7);
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  border: 1px solid rgba(100, 255, 218, 0.2);
-}
-
-/* 认证记录页面样式 */
-.certification-section {
-  margin-top: 1rem;
-  position: relative;
-  z-index: 1;
-}
-
-.filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 1rem;
-  align-items: center;
-}
-
-.certifier-info-row {
-  display: flex;
-  flex-direction: column;
-}
-
-.link-text {
-  color: #64ffda;
-  cursor: pointer;
-  font-weight: 500;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-}
-
-.link-text:hover {
-  text-decoration: underline;
-}
-
-.txhash-text {
-  color: #64ffda;
-  cursor: pointer;
-  font-family: monospace;
-}
-
-.txhash-text:hover {
-  text-decoration: underline;
-}
-
-.status-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-  text-align: center;
-  min-width: 70px;
-}
-
-.status-tag.pending {
-  background: rgba(230, 162, 60, 0.2);
-  color: #e6a23c;
-  border: 1px solid rgba(230, 162, 60, 0.3);
-}
-
-.status-tag.approved {
-  background: rgba(103, 194, 58, 0.2);
-  color: #67c23a;
-  border: 1px solid rgba(103, 194, 58, 0.3);
-}
-
-.status-tag.rejected {
-  background: rgba(245, 108, 108, 0.2);
-  color: #f56c6c;
-  border: 1px solid rgba(245, 108, 108, 0.3);
-}
-
-.status-tag.completed {
-  background: rgba(100, 255, 218, 0.2);
-  color: #64ffda;
-  border: 1px solid rgba(100, 255, 218, 0.3);
-}
-
-@media (max-width: 768px) {
-  .filter-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .filter-group {
-    margin-bottom: 0.5rem;
-  }
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

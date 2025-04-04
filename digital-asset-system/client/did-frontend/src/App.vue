@@ -43,13 +43,4 @@ provide('uploadMonitor', uploadMonitorRef);
   margin-top: 70px;
 }
 
-
-/* .logo {
-  font-size: 1.5rem;
-  font-weight: bold;
-} */
-
-/* .app-main {
-  padding: 2rem;
-} */
 </style>

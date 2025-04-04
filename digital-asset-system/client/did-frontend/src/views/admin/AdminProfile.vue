@@ -131,7 +131,7 @@
             </template>
             
             <div class="stats-container">
-              <div class="stat-item">
+              <!-- <div class="stat-item">
                 <div class="stat-value">{{ systemStats.userCount }}</div>
                 <div class="stat-label">注册用户</div>
               </div>
@@ -155,7 +155,7 @@
               <div class="stat-item">
                 <div class="stat-value">{{ systemStats.certifiedAssets }}</div>
                 <div class="stat-label">已认证资产</div>
-              </div>
+              </div> -->
             </div>
             
             <div class="system-actions">
@@ -177,7 +177,7 @@
             </div>
           </el-card>
           
-          <el-card class="activity-card" shadow="hover">
+          <!-- <el-card class="activity-card" shadow="hover">
             <template #header>
               <div class="card-header">
                 <el-icon class="header-icon"><Timer /></el-icon>
@@ -195,7 +195,7 @@
                 {{ activity.content }}
               </el-timeline-item>
             </el-timeline>
-          </el-card>
+          </el-card> -->
         </el-col>
       </el-row>
       
@@ -430,11 +430,11 @@
     bottom: 0;
     z-index: -1;
     overflow: hidden;
-    background: #0a192f;
+    background: #ffffff;
     
     .binary-bit {
       position: absolute;
-      color: rgba(100, 255, 218, 0.1);
+      color: rgba(0, 0, 0, 0.05);
       font-family: monospace;
       font-size: 14px;
       animation: float 5s infinite;
@@ -460,18 +460,18 @@
   .el-card {
     margin-bottom: 20px;
     transition: all 0.3s ease;
-    background: rgba(10, 25, 47, 0.7);
-    border: 1px solid #233554;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #dddddd;
     backdrop-filter: blur(10px);
   
     &:hover {
       transform: translateY(-3px);
-      border-color: #64ffda;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
   
     :deep(.el-card__header) {
-      background: rgba(35, 53, 84, 0.5);
-      border-bottom: 1px solid #233554;
+      background: rgba(245, 245, 245, 0.9);
+      border-bottom: 1px solid #dddddd;
       padding: 18px 20px;
     }
   
@@ -482,13 +482,13 @@
   
       .header-icon {
         font-size: 24px;
-        color: #64ffda;
+        color: #000000;
       }
   
       .card-title {
         margin: 0;
         font-size: 18px;
-        color: #e6f1ff;
+        color: #000000;
       }
     }
   }
@@ -500,47 +500,53 @@
         background: transparent;
         border-radius: 8px;
         overflow: hidden;
-        border: 1px solid #233554;
+        border: 1px solid #dddddd;
       }
   
       .el-descriptions__cell {
-        background: rgba(10, 25, 47, 0.5) !important;
-        border-bottom: 1px solid #233554;
+        background: rgba(255, 255, 255, 0.95) !important;
+        border-bottom: 1px solid #dddddd;
       }
   
       .el-descriptions-item__label {
         width: 120px;
         font-weight: 500;
-        color: #64ffda !important;
-        background: rgba(35, 53, 84, 0.5) !important;
+        color: #000000 !important;
+        background: rgba(245, 245, 245, 0.9) !important;
         padding: 16px 20px;
   
         &.is-bordered-content {
-          border-right: 1px solid #233554;
+          border-right: 1px solid #dddddd;
         }
       }
   
       .el-descriptions-item__content {
-        background: rgba(10, 25, 47, 0.5) !important;
-        color: #8892b0 !important;
+        background: rgba(255, 255, 255, 0.95) !important;
+        color: #333333 !important;
         padding: 16px 20px;
   
         .el-link {
-          color: #64ffda !important;
+          color: #000000 !important;
           &:hover {
-            color: #8892b0 !important;
+            color: #666666 !important;
           }
         }
   
         .el-tag {
-          background: rgba(100, 255, 218, 0.1);
-          border-color: #64ffda;
-          color: #64ffda;
+          background: rgba(0, 0, 0, 0.05);
+          border-color: #000000;
+          color: #000000;
           
           &.el-tag--danger {
-            background: rgba(255, 85, 85, 0.1);
-            border-color: #ff5555;
-            color: #ff5555;
+            background: rgba(255, 77, 79, 0.1);
+            border-color: #ff4d4f;
+            color: #ff4d4f;
+          }
+
+          &.el-tag--success {
+            background: rgba(0, 0, 0, 0.05);
+            border-color: #000000;
+            color: #000000;
           }
         }
       }
@@ -552,6 +558,35 @@
     .security-form {
       padding: 10px;
     }
+
+    :deep(.el-input__wrapper) {
+      background: rgba(245, 245, 245, 0.9);
+      border: 1px solid #dddddd;
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #000000;
+      }
+    }
+
+    :deep(.el-input__inner) {
+      color: #000000;
+    }
+
+    :deep(.el-form-item__label) {
+      color: #000000;
+    }
+
+    :deep(.el-button--primary) {
+      background: #000000;
+      border-color: #000000;
+      color: #ffffff;
+
+      &:hover {
+        background: #333333;
+        border-color: #333333;
+      }
+    }
   }
   
   .wallet-info {
@@ -560,9 +595,120 @@
     gap: 12px;
     
     .el-tag {
-      background: rgba(100, 255, 218, 0.1);
-      border-color: #64ffda;
-      color: #64ffda;
+      background: rgba(0, 0, 0, 0.05);
+      border-color: #000000;
+      color: #000000;
+    }
+  }
+  
+  // 系统状态卡片
+  .system-stats-card {
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+
+      .stat-item {
+        text-align: center;
+        padding: 20px;
+        background: rgba(245, 245, 245, 0.9);
+        border-radius: 8px;
+        border: 1px solid #dddddd;
+
+        .stat-value {
+          font-size: 24px;
+          font-weight: bold;
+          color: #000000;
+          margin-bottom: 8px;
+        }
+
+        .stat-label {
+          color: #666666;
+          font-size: 14px;
+        }
+      }
+    }
+
+    .system-actions {
+      .section-title {
+        color: #000000;
+        font-size: 16px;
+        margin-bottom: 16px;
+      }
+
+      .action-buttons {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+
+        .el-button {
+          background: transparent;
+          border: 1px solid #000000;
+          color: #000000;
+
+          &:hover {
+            background: rgba(0, 0, 0, 0.05);
+          }
+
+          .el-icon {
+            margin-right: 8px;
+          }
+        }
+      }
+    }
+  }
+  
+  // 对话框样式
+  :deep(.el-dialog) {
+    background: #ffffff;
+    border: 1px solid #dddddd;
+    border-radius: 8px;
+
+    .el-dialog__header {
+      background: rgba(245, 245, 245, 0.9);
+      padding: 16px 20px;
+      border-bottom: 1px solid #dddddd;
+      margin: 0;
+
+      .el-dialog__title {
+        color: #000000;
+        font-weight: 500;
+      }
+    }
+
+    .el-dialog__body {
+      color: #333333;
+      padding: 20px;
+    }
+
+    .el-dialog__footer {
+      border-top: 1px solid #dddddd;
+      padding: 16px 20px;
+    }
+
+    .el-button {
+      &.el-button--primary {
+        background: #000000;
+        border-color: #000000;
+        color: #ffffff;
+
+        &:hover {
+          background: #333333;
+          border-color: #333333;
+        }
+      }
+    }
+  }
+  
+  // 响应式适配
+  @media (max-width: 768px) {
+    .admin-profile-container {
+      padding: 80px 10px 20px;
+    }
+
+    .system-actions .action-buttons {
+      grid-template-columns: 1fr;
     }
   }
   </style>

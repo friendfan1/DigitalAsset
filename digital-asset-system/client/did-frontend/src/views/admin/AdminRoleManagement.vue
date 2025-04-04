@@ -210,6 +210,7 @@ import { useUserStore } from '@/stores/user';
 import { RBACService } from '@/utils/web3/RBACService';
 import { Web3RoleService } from '@/services/Web3RoleService';
 import axios from 'axios';
+import { de } from 'element-plus/es/locales.mjs';
 
 // 定义类型
 interface UserRole {
@@ -472,10 +473,13 @@ const handleGrantRole = async () => {
         // 初始化 RBAC 服务
         const rbacService = new RBACService(provider, signer);
         
+        const deadline = Math.floor(Date.now() / 1000) + 300; // 5分钟后的时间戳
+
         // 1. 在区块链上授权
-        await rbacService.grantRole(
+        await rbacService.grantRoleWithSignature(
           grantRoleForm.userAddress,
-          grantRoleForm.roleType
+          grantRoleForm.roleType,
+          deadline
         );
         
         // 2. 在后端同步授权信息
@@ -632,11 +636,13 @@ const handleGrantCompanyRole = async () => {
         
         // 初始化 RBAC 服务
         const rbacService = new RBACService(provider, signer);
+        const deadline = Math.floor(Date.now() / 1000) + 300; // 5分钟后的时间戳
         
         // 1. 在区块链上授权
-        await rbacService.grantRole(
+        await rbacService.grantRoleWithSignature(
           company.walletAddress,
-          companyGrantForm.roleType
+          companyGrantForm.roleType,
+          deadline
         );
         
         // 2. 在后端同步授权信息
@@ -678,40 +684,48 @@ onMounted(() => {
 <style scoped lang="scss">
 .admin-roles-container {
   padding: 20px;
-  background: #0a192f;
+  background: #ffffff;
   min-height: calc(100vh - 75px);
   margin-top: 75px;
   
   h1 {
     font-size: 28px;
     font-weight: 600;
-    color: #e6f1ff;
+    color: #000000;
     margin-bottom: 24px;
   }
   
   .grant-role-card,
-  .users-role-card {
+  .users-role-card,
+  .company-grant-card {
     margin-bottom: 24px;
-    background: rgba(17, 34, 64, 0.6);
-    border: 1px solid #233554;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #dddddd;
     backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
     
     :deep(.el-card__header) {
-      background: rgba(35, 53, 84, 0.7);
+      background: rgba(245, 245, 245, 0.9);
       padding: 15px 20px;
+      border-bottom: 1px solid #dddddd;
       
       .card-header {
         display: flex;
         align-items: center;
         
         .el-icon {
-          color: #64ffda;
+          color: #000000;
           font-size: 18px;
           margin-right: 10px;
         }
         
         span {
-          color: #e6f1ff;
+          color: #000000;
           font-size: 18px;
           font-weight: 500;
         }
@@ -724,11 +738,11 @@ onMounted(() => {
         
         .refresh-btn {
           background: transparent;
-          border: 1px solid #64ffda;
-          color: #64ffda;
+          border: 1px solid #000000;
+          color: #000000;
           
           &:hover {
-            background: rgba(100, 255, 218, 0.1);
+            background: rgba(0, 0, 0, 0.05);
           }
         }
       }
@@ -736,7 +750,7 @@ onMounted(() => {
     
     :deep(.el-card__body) {
       padding: 20px;
-      color: #8892b0;
+      color: #333333;
     }
   }
   
@@ -745,22 +759,22 @@ onMounted(() => {
     
     :deep(.el-table__header) {
       th {
-        background: rgba(35, 53, 84, 0.5);
-        color: #64ffda;
+        background: rgba(245, 245, 245, 0.9);
+        color: #000000;
         font-weight: 500;
-        border-bottom: 1px solid #233554;
+        border-bottom: 1px solid #dddddd;
       }
     }
     
     :deep(.el-table__body) {
       td {
-        background: rgba(17, 34, 64, 0.3);
-        color: #8892b0;
-        border-bottom: 1px solid #233554;
+        background: rgba(255, 255, 255, 0.95);
+        color: #333333;
+        border-bottom: 1px solid #dddddd;
       }
       
       tr:hover > td {
-        background: rgba(35, 53, 84, 0.3) !important;
+        background: rgba(245, 245, 245, 0.9) !important;
       }
     }
     
@@ -775,7 +789,7 @@ onMounted(() => {
     text-align: center;
     
     :deep(.el-empty__description) {
-      color: #8892b0;
+      color: #666666;
     }
   }
   
@@ -785,98 +799,99 @@ onMounted(() => {
 }
 
 :deep(.el-dialog) {
-  background: #0a192f;
-  border: 1px solid #233554;
+  background: #ffffff;
+  border: 1px solid #dddddd;
   border-radius: 8px;
   
   .el-dialog__header {
-    background: rgba(35, 53, 84, 0.7);
+    background: rgba(245, 245, 245, 0.9);
     margin: 0;
     padding: 16px 20px;
-    border-bottom: 1px solid #233554;
+    border-bottom: 1px solid #dddddd;
     border-radius: 8px 8px 0 0;
     
     .el-dialog__title {
-      color: #e6f1ff;
+      color: #000000;
       font-weight: 500;
     }
   }
   
   .el-dialog__body {
-    color: #8892b0;
+    color: #333333;
     padding: 20px;
   }
   
   .el-dialog__footer {
-    border-top: 1px solid #233554;
+    border-top: 1px solid #dddddd;
     padding: 16px 20px;
   }
 }
 
 :deep(.el-form-item__label) {
-  color: #e6f1ff;
+  color: #000000;
 }
 
 :deep(.el-input__inner),
 :deep(.el-select__wrapper) {
-  background: rgba(17, 34, 64, 0.6);
-  border: 1px solid #233554;
-  color: #e6f1ff;
+  background: rgba(245, 245, 245, 0.9);
+  border: 1px solid #dddddd;
+  color: #000000;
   
   &:focus,
   &:hover {
-    border-color: #64ffda;
+    border-color: #000000;
   }
 }
 
 :deep(.el-checkbox__label) {
-  color: #8892b0;
+  color: #333333;
 }
 
 :deep(.el-button--primary) {
-  background: transparent;
-  border: 1px solid #64ffda;
-  color: #64ffda;
+  background: #000000;
+  border: 1px solid #000000;
+  color: #ffffff;
   
   &:hover {
-    background: rgba(100, 255, 218, 0.1);
+    background: #333333;
+    border-color: #333333;
   }
   
   &:disabled {
-    border-color: #6c7983;
-    color: #6c7983;
-    background: transparent;
+    background: #dddddd;
+    border-color: #dddddd;
+    color: #999999;
   }
 }
 
 :deep(.el-button--danger) {
   background: transparent;
-  border: 1px solid #ff5555;
-  color: #ff5555;
+  border: 1px solid #ff4d4f;
+  color: #ff4d4f;
   
   &:hover {
-    background: rgba(255, 85, 85, 0.1);
+    background: rgba(255, 77, 79, 0.1);
   }
   
   &:disabled {
-    border-color: #6c7983;
-    color: #6c7983;
+    border-color: #dddddd;
+    color: #999999;
     background: transparent;
   }
 }
 
 :deep(.el-button--success) {
   background: transparent;
-  border: 1px solid #13ce66;
-  color: #13ce66;
+  border: 1px solid #000000;
+  color: #000000;
   
   &:hover {
-    background: rgba(19, 206, 102, 0.1);
+    background: rgba(0, 0, 0, 0.05);
   }
   
   &:disabled {
-    border-color: #6c7983;
-    color: #6c7983;
+    border-color: #dddddd;
+    color: #999999;
     background: transparent;
   }
 }
@@ -888,40 +903,52 @@ onMounted(() => {
   
   .el-tag {
     margin-left: 8px;
+    background: rgba(0, 0, 0, 0.05);
+    border-color: #000000;
+    color: #000000;
   }
 }
 
-.company-grant-card {
-  margin-bottom: 24px;
-  background: rgba(17, 34, 64, 0.6);
-  border: 1px solid #233554;
-  backdrop-filter: blur(10px);
-  
-  :deep(.el-card__header) {
-    background: rgba(35, 53, 84, 0.7);
-    padding: 15px 20px;
-    
-    .card-header {
-      display: flex;
-      align-items: center;
-      
-      .el-icon {
-        color: #64ffda;
-        font-size: 18px;
-        margin-right: 10px;
-      }
-      
-      span {
-        color: #e6f1ff;
-        font-size: 18px;
-        font-weight: 500;
-      }
-    }
+:deep(.el-tag) {
+  &.el-tag--success {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: #000000;
+    color: #000000;
   }
   
-  :deep(.el-card__body) {
-    padding: 20px;
-    color: #8892b0;
+  &.el-tag--danger {
+    background: rgba(255, 77, 79, 0.1);
+    border-color: #ff4d4f;
+    color: #ff4d4f;
+  }
+  
+  &.el-tag--warning {
+    background: rgba(250, 173, 20, 0.1);
+    border-color: #faad14;
+    color: #faad14;
+  }
+  
+  &.el-tag--info {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: #666666;
+    color: #666666;
+  }
+}
+
+// 响应式适配
+@media (max-width: 768px) {
+  .admin-roles-container {
+    padding: 10px;
+    margin-top: 60px;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+    gap: 8px;
+    
+    .el-button {
+      width: 100%;
+    }
   }
 }
 </style> 

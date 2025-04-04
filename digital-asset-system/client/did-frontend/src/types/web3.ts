@@ -1,16 +1,22 @@
 // types/web3.ts
 export interface DIDDocument {
-    "@context": string;
+  '@context': string | string[];
+  id: string;
+  created: string;
+  updated?: string;
+  verificationMethod: Array<{
     id: string;
-    created: string;
-    verificationMethod: Array<{
-      id: string;
-      type: string;
-      controller: string;
-      publicKeyHex: string;
-    }>;
-    authentication: string[];
-  }
+    type: string;
+    controller: string;
+    blockchainAccountId?: string;
+  }>;
+  authentication: string[];
+  service?: Array<{
+    id: string;
+    type: string;
+    serviceEndpoint: string;
+  }>;
+}
   
   export interface AssetMetadata {
     description?: string;

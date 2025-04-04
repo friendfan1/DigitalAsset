@@ -8,6 +8,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -84,6 +85,12 @@ public class AssetCertificationRequest {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    // 新增：存储认证资料文件路径
+    @ElementCollection
+    @CollectionTable(name = "certification_files", 
+                    joinColumns = @JoinColumn(name = "request_id"))
+    @Column(name = "file_path")
+    private List<String> filePaths;
 
     /**
      * 检查请求是否可处理
@@ -137,7 +144,5 @@ public class AssetCertificationRequest {
         this.reason = reason;
         this.status = RequestStatus.PENDING;
     }
-
-
 
 } 

@@ -150,6 +150,7 @@ public class UserController {
         user.setPassword(encodedPassword);
         user.setEmail(request.getEmail());
         user.setVerificationStatus(VerificationStatus.NOT_SUBMITTED);
+        user.setPublicKey(request.getPublicKey()); // 设置公钥
 
         // 注册用户
         if (userService.registerUser(user, request.getVerificationCode())) {
@@ -328,7 +329,7 @@ public class UserController {
         }
         catch (Exception e){
             response.put("success", false);
-            response.put("message", "服务器内部错误");
+            response.put("message", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }

@@ -82,10 +82,7 @@
                                             type="success"
                                             class="wallet-tag"
                                         >
-                                            <AddressDisplay 
-                                                :text="userStore.profile.walletAddress"
-                                                title="钱包地址"
-                                            />
+                                            {{ shortenAddress(userStore.profile.walletAddress) }}
                                         </el-tag>
                                         <el-button
                                             type="danger"
@@ -115,10 +112,7 @@
                                 <template v-if="didInfo">
                                     <div class="did-details">
                                         <el-tag type="success" class="did-tag">
-                                            <AddressDisplay 
-                                                :text="didInfo.did"
-                                                title="DID标识符"
-                                            />
+                                            {{ didInfo.docHash || '' }}
                                         </el-tag>
                                         <el-descriptions :column="1" border size="small" class="mt-8">
                                             <el-descriptions-item label="创建时间">
@@ -170,14 +164,24 @@
                             :closable="false"
                             show-icon
                         />
-                        <el-button
-                            type="primary"
-                            class="mt-20"
-                            @click="openChangePasswordDialog"
-                        >
-                            <el-icon class="mr-8"><Edit /></el-icon>
-                            修改密码
-                        </el-button>
+                        <div class="security-buttons">
+                            <el-button
+                                type="primary"
+                                class="mt-20"
+                                @click="openChangePasswordDialog"
+                            >
+                                <el-icon class="mr-8"><Edit /></el-icon>
+                                修改密码
+                            </el-button>
+                            <el-button
+                                type="primary"
+                                class="mt-20 ml-20"
+                                @click="goToKeyManagement"
+                            >
+                                <el-icon class="mr-8"><Key /></el-icon>
+                                密钥管理
+                            </el-button>
+                        </div>
                     </div>
                 </el-card>
             </el-col>
@@ -391,7 +395,7 @@
                         >
                             <template #extra>
                                 <p class="did-info">DID: {{ generatedDID }}</p>
-                                <p class="tx-info">交易哈希: {{ txHash }}</p>
+                                <p class="tx-info">交易哈希: {{ transactionHash }}</p>
                             </template>
                         </el-result>
                     </div>
@@ -534,7 +538,6 @@ import {
   useWalletStore} from '@/stores/wallet';
 import { 
   getDIDRegistryService, 
-  type DIDCreatedEvent 
 } from '@/utils/web3/DIDRegistryService';
 import { formatDate } from '@/utils/dateFormat';
 import { shortenAddress } from '@/utils/address';
@@ -545,17 +548,17 @@ import {
   DocumentChecked,
   OfficeBuilding,
   CircleCheck,
-  Wallet
+  Wallet,
+  Key
 } from '@element-plus/icons-vue';
-// import WalletConnectionPanel from '@/components/web3/WalletConnectionPanel.vue';
-// import StakeConfirmation from '@/components/web3/StakeConfirmation.vue';
-import DIDGenerationResult from '@/components/web3/DIDGenerationResult.vue';
+import { useRouter } from 'vue-router';
 import type { DIDDocument } from '@/types/web3';
-import AddressDisplay from '@/components/common/AddressDisplay.vue'
+import AddressDisplay from '@/components/common/AddressDisplay.vue';
 
 // Store 初始化
 const userStore = useUserStore();
 const walletStore = useWalletStore();
+const router = useRouter();
 
 // 网络支持列表
 const SUPPORTED_NETWORKS: Record<number, string> = {
@@ -568,12 +571,13 @@ const SUPPORTED_NETWORKS: Record<number, string> = {
 
 // DID 信息
 interface DIDInfo {
-  owner: string
   docHash: string
   created: Date
   reputation: number
   active: boolean
-  did: string
+  controller: string
+  did?: string
+  owner?: string
 }
 
 const didInfo = ref<DIDInfo | null>(null)
@@ -640,8 +644,8 @@ const blockchainIdentity = ref('');
 // ==================== DID 管理 ====================
 const showDIDDialog = ref(false);
 const didStep = ref(1);
-const generatedDID = ref('');
-const txHash = ref('');
+const generatedDID = ref<string>('');
+const transactionHash = ref<string>('');
 const stakeAmount = ref('0');
 
 // ==================== 密码修改 ====================
@@ -904,10 +908,8 @@ const handleBindWallet = async () => {
 
 const handleVerifyIdentity = async () => {
   try {
-    console.log('Verifying identity');
     verificationLoading.value = true;
-    // const identity = blockchainIdentity.value;
-    console.log('进入bindWalletToBackend前');
+
     await bindWalletToBackend();
     
     verificationStep.value = 2;
@@ -937,42 +939,6 @@ const handleUnbindWallet = async () => {
   }
 };
 
-// DID 管理
-const handleBindDID = async () => {
-  try {
-    didLoading.value = true
-    
-    // 创建 DID 文档
-    const didDocument: DIDDocument = {
-      '@context': 'https://www.w3.org/ns/did/v1',
-      id: walletStore.address,
-      created: new Date().toISOString(),
-      verificationMethod: [{
-        id: `${walletStore.address}#key-1`,
-        type: 'EcdsaSecp256k1VerificationKey2019',
-        controller: walletStore.address,
-        publicKeyHex: walletStore.address
-      }],
-      authentication: [`${walletStore.address}#key-1`]
-    }
-
-    // 创建 DID
-    const didService = await getDIDRegistryService()
-    const result = await didService.createDID(didDocument)
-    console.log('DID created:', result)
-    
-    // 刷新 DID 信息
-    await fetchDIDInfo()
-    
-    ElMessage.success('DID 创建成功')
-  } catch (error) {
-    console.error('DID Creation Error:', error)
-    ElMessage.error(error instanceof Error ? error.message : '创建 DID 失败')
-  } finally {
-    didLoading.value = false
-  }
-}
-
 const handleWalletConnected = async () => {
   didStep.value = 2;
 };
@@ -983,12 +949,8 @@ const handleStakeConfirmed = async () => {
     const didService = await getDIDRegistryService();
     const didDoc = generateDIDDocument();
     console.log("DID Document:", didDoc);
-    
-    // 检查合约连接
-    if (!await didService.isContractInitialized()) {
-      throw new Error('合约实例未初始化');
-    }
-    
+  
+
     // 检查网络连接
     const network = await walletStore.provider?.getNetwork();
     console.log("Current Network:", network);
@@ -997,24 +959,13 @@ const handleStakeConfirmed = async () => {
     const balance = await walletStore.provider?.getBalance(walletStore.address);
     console.log("Wallet Balance:", balance ? formatEther(balance) : '未知');
     
-    // 获取质押金额
-    const stakeAmountBN = await didService.getStakeAmount();
-    console.log("Required Stake Amount:", formatEther(stakeAmountBN));
-    
-    if (balance && BigInt(balance) < BigInt(stakeAmountBN)) {
-      throw new Error(`余额不足，需要 ${formatEther(stakeAmountBN)} ETH`);
-    }
-    
     // 尝试创建 DID
     console.log("Attempting to create DID...");
-    const { did, txHash: hash } = await didService.createDID({
-      ...didDoc,
-      id: walletStore.address // 使用钱包地址作为DID标识符
-    });
+    const { did, txHash } = await didService.createDID(didDoc);
     
     // 更新状态
     generatedDID.value = did;
-    txHash.value = hash;
+    transactionHash.value = txHash;
 
     // 更新用户信息
     await userStore.updateProfile({ did: generatedDID.value });
@@ -1038,41 +989,35 @@ const handleStakeConfirmed = async () => {
   }
 };
 
-const verifyDID = async () => {
-  try {
-    if (!userStore.profile?.did) return;
-    
-    const didService = await getDIDRegistryService();
-    const docHash = ethers.keccak256(
-      ethers.toUtf8Bytes(JSON.stringify(generateDIDDocument()))
-    );
-    
-    const isValid = await didService.verifyDID(
-      walletStore.address,
-      docHash
-    );
-    
-    ElMessage[isValid ? 'success' : 'warning'](
-      isValid ? 'DID验证有效' : 'DID验证失败'
-    );
-  } catch (error: any) {
-    handleDIDError(error);
-  }
-};
 
 // 通用方法
-const generateDIDDocument = () => ({
-  "@context": "https://www.w3.org/ns/did/v1",
-  "id": walletStore.address,
-  "created": new Date().toISOString(),
-  "verificationMethod": [{
-    id: `${walletStore.address}#keys-1`,
-    type: "EcdsaSecp256k1VerificationKey2019",
-    controller: walletStore.address,
-    publicKeyHex: walletStore.address
-  }],
-  "authentication": [`${walletStore.address}#keys-1`]
-});
+const generateDIDDocument = (): DIDDocument => {
+  const did = `did:ethr:${walletStore.address}`;
+  const now = new Date().toISOString();
+  
+  return {
+    "@context": [
+      "https://www.w3.org/ns/did/v1",
+      "https://w3id.org/security/suites/secp256k1-2019/v1"
+    ],
+    id: did,
+    created: now,
+    updated: now,
+    verificationMethod: [{
+      id: `${did}#controller`,
+      type: "EcdsaSecp256k1RecoveryMethod2020",
+      controller: did,
+      blockchainAccountId: `eip155:${walletStore.chainId}:${walletStore.address}`
+    }],
+    authentication: [`${did}#controller`],
+    service: [{
+      id: "#vc-service",
+      type: "VerifiableCredentialService",
+      serviceEndpoint: `${import.meta.env.VITE_API_BASE}/vc/${did}`
+    }]
+  };
+};
+
 
 const bindWalletToBackend = async () => {
   console.log("进入bindWalletToBackend");
@@ -1096,7 +1041,7 @@ const bindWalletToBackend = async () => {
       throw new Error("Signer is null");
     }
     console.log("相关信息", walletStore.address, signature);
-
+    console.log(walletStore.address);
     const response = await axios.post('/api/bind-web3-address', {
       address: walletStore.address,
       chainId: walletStore.chainId
@@ -1193,8 +1138,7 @@ const handleDialogClose = () => {
 const fetchDIDInfo = async () => {
   try {
     const didService = await getDIDRegistryService()
-    const address = await didService.getCurrentAddress()
-    const info = await didService.getDIDInfo(address)
+    const info = await didService.getDIDInfo(walletStore.address)
     didInfo.value = info
   } catch (error) {
     console.error('获取 DID 信息失败:', error)
@@ -1216,6 +1160,15 @@ const generateBinaryBackground = () => {
 };
 
 const backgroundBits = generateBinaryBackground();
+
+const goToKeyManagement = () => {
+  router.push('/key-management');
+};
+
+const handleBindDID = () => {
+    showDIDDialog.value = true;
+    didStep.value = 1;
+};
 </script>
 
 
@@ -1227,7 +1180,7 @@ const backgroundBits = generateBinaryBackground();
   max-width: 1200px;
   margin: 0 auto;
   min-height: calc(100vh - 75px);
-  color: #8892b0;
+  color: #333333;
   position: relative;
   z-index: 1;
 }
@@ -1239,13 +1192,13 @@ const backgroundBits = generateBinaryBackground();
   left: 0;
   right: 0;
   bottom: 0;
-  background: #0a192f;
+  background: #ffffff;
   overflow: hidden;
   z-index: 0;
 
   .binary-bit {
     position: absolute;
-    color: rgba(100, 255, 218, 0.1);
+    color: rgba(0, 0, 0, 0.1);
     font-family: monospace;
     font-size: 14px;
     animation: float 5s infinite;
@@ -1271,18 +1224,18 @@ const backgroundBits = generateBinaryBackground();
 .el-card {
   margin-bottom: 20px;
   transition: all 0.3s ease;
-  background: rgba(10, 25, 47, 0.7);
-  border: 1px solid #233554;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #dddddd;
   backdrop-filter: blur(10px);
 
   &:hover {
     transform: translateY(-3px);
-    border-color: #64ffda;
+    border-color: #000000;
   }
 
   :deep(.el-card__header) {
-    background: rgba(35, 53, 84, 0.5);
-    border-bottom: 1px solid #233554;
+    background: rgba(245, 245, 245, 0.9);
+    border-bottom: 1px solid #dddddd;
     padding: 18px 20px;
   }
 
@@ -1293,13 +1246,13 @@ const backgroundBits = generateBinaryBackground();
 
     .header-icon {
       font-size: 24px;
-      color: #64ffda;
+      color: #000000;
     }
 
     .card-title {
       margin: 0;
       font-size: 18px;
-      color: #e6f1ff;
+      color: #000000;
     }
   }
 }
@@ -1307,79 +1260,46 @@ const backgroundBits = generateBinaryBackground();
 // 公司信息卡片
 .user-info-card {
   :deep(.el-descriptions) {
-    // 整体表格样式
     .el-descriptions__table {
       background: transparent;
       border-radius: 8px;
       overflow: hidden;
-      border: 1px solid #233554;
+      border: 1px solid #dddddd;
     }
 
-    // 标签和内容单元格的通用样式
     .el-descriptions__cell {
-      background: rgba(10, 25, 47, 0.5) !important;
-      border-bottom: 1px solid #233554;
+      background: rgba(255, 255, 255, 0.9) !important;
+      border-bottom: 1px solid #dddddd;
     }
 
-    // 标签单元格
     .el-descriptions-item__label {
       width: 120px;
       font-weight: 500;
-      color: #64ffda !important;
-      background: rgba(35, 53, 84, 0.5) !important;
+      color: #000000 !important;
+      background: rgba(245, 245, 245, 0.9) !important;
       padding: 16px 20px;
 
       &.is-bordered-content {
-        border-right: 1px solid #233554;
+        border-right: 1px solid #dddddd;
       }
     }
 
-    // 内容单元格
     .el-descriptions-item__content {
-      background: rgba(10, 25, 47, 0.5) !important;
-      color: #8892b0 !important;
+      background: rgba(255, 255, 255, 0.9) !important;
+      color: #333333 !important;
       padding: 16px 20px;
 
-      // 链接样式
       .el-link {
-        color: #64ffda !important;
+        color: #000000 !important;
         &:hover {
-          color: #8892b0 !important;
+          color: #666666 !important;
         }
       }
 
-      // 标签样式
       .el-tag {
-        background: rgba(100, 255, 218, 0.1);
-        border-color: #64ffda;
-        color: #64ffda;
-      }
-    }
-
-    // 表格边框
-    .el-descriptions__body {
-      .el-descriptions__table {
-        border-collapse: collapse;
-        
-        td {
-          border-right: 1px solid #233554;
-          
-          &:last-child {
-            border-right: none;
-          }
-        }
-      }
-    }
-
-    // 确保所有文本颜色正确
-    .el-descriptions-item__container {
-      .el-descriptions-item__label,
-      .el-descriptions-item__content {
-        line-height: 1.5;
-        
-        span, p, div {
-          color: inherit;
-        }
+        background: rgba(0, 0, 0, 0.05);
+        border-color: #000000;
+        color: #000000;
       }
     }
   }
@@ -1389,18 +1309,18 @@ const backgroundBits = generateBinaryBackground();
 .change-password-card {
   .security-info {
     .el-alert {
-      background: rgba(35, 53, 84, 0.5);
-      border: 1px solid #233554;
-      color: #8892b0;
+      background: rgba(245, 245, 245, 0.9);
+      border: 1px solid #dddddd;
+      color: #333333;
     }
 
     .el-button {
       background: transparent;
-      border: 1px solid #64ffda;
-      color: #64ffda;
+      border: 1px solid #000000;
+      color: #000000;
 
       &:hover {
-        background: rgba(100, 255, 218, 0.1);
+        background: rgba(0, 0, 0, 0.1);
       }
     }
   }
@@ -1411,44 +1331,44 @@ const backgroundBits = generateBinaryBackground();
   .verification-status {
     .el-result {
       padding: 20px 0;
-      color: #e6f1ff;
+      color: #000000;
 
       :deep(.el-result__icon) {
         .icon-success {
-          color: #64ffda;
+          color: #000000;
         }
         .icon-warning {
-          color: #ffb86c;
+          color: #666666;
         }
       }
 
       :deep(.el-result__title) {
-        color: #e6f1ff;
+        color: #000000;
       }
 
       :deep(.el-result__subtitle) {
-        color: #8892b0;
+        color: #333333;
       }
 
       .tip-text {
         margin-top: 12px;
         font-size: 12px;
-        color: #8892b0;
+        color: #666666;
         text-align: center;
       }
 
       .el-button {
         background: transparent;
-        border: 1px solid #64ffda;
-        color: #64ffda;
+        border: 1px solid #000000;
+        color: #000000;
 
         &:hover {
-          background: rgba(100, 255, 218, 0.1);
+          background: rgba(0, 0, 0, 0.1);
         }
 
         &:disabled {
-          border-color: #8892b0;
-          color: #8892b0;
+          border-color: #999999;
+          color: #999999;
         }
       }
     }
@@ -1457,56 +1377,72 @@ const backgroundBits = generateBinaryBackground();
 
 // 弹窗样式
 :deep(.el-dialog) {
-  background: #0a192f;
-  border: 1px solid #233554;
+  background: #ffffff;
+  border: 1px solid #dddddd;
   border-radius: 8px;
 
   .el-dialog__header {
-    border-bottom: 1px solid #233554;
+    border-bottom: 1px solid #dddddd;
     .el-dialog__title {
-      color: #e6f1ff;
+      color: #000000;
     }
   }
 
   .el-dialog__body {
-    color: #8892b0;
+    color: #333333;
   }
 
   .el-form-item__label {
-    color: #64ffda;
+    color: #000000;
   }
 
   .el-input {
-    background: rgba(35, 53, 84, 0.5);
-    border: 1px solid #233554;
-    color: #e6f1ff;
+    background: rgba(245, 245, 245, 0.9);
+    border: 1px solid #dddddd;
+    color: #000000;
 
     .el-input__inner {
       background: transparent;
-      color: #e6f1ff;
+      color: #000000;
     }
   }
 
   .el-button {
     &:not(.el-button--primary) {
       background: transparent;
-      border: 1px solid #64ffda;
-      color: #64ffda;
+      border: 1px solid #000000;
+      color: #000000;
 
       &:hover {
-        background: rgba(100, 255, 218, 0.1);
+        background: rgba(0, 0, 0, 0.1);
       }
     }
 
     &.el-button--primary {
-      background: #64ffda;
-      border-color: #64ffda;
-      color: #0a192f;
+      background: #000000;
+      border-color: #000000;
+      color: #ffffff;
 
       &:hover {
         opacity: 0.9;
       }
     }
+  }
+}
+
+.wallet-address-wrapper {
+  .wallet-tag {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: #000000;
+    color: #000000;
+  }
+}
+
+.address-mismatch-warning {
+  .el-alert {
+    background: rgba(245, 245, 245, 0.9);
+    border: 1px solid #dddddd;
+    color: #333333;
   }
 }
 
@@ -1549,18 +1485,13 @@ const backgroundBits = generateBinaryBackground();
 .mr-8 { margin-right: 8px !important; }
 .text-center { text-align: center; }
 
-.address-mismatch-warning {
-    width: 100%;
-    margin-bottom: 12px;
-    
-    .mt-8 {
-        margin-top: 8px;
-    }
+.security-buttons {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
 }
 
-.preview-image {
-    margin-top: 10px;
-    max-width: 100%;
-    max-height: 200px;
+.ml-20 {
+  margin-left: 20px;
 }
 </style>

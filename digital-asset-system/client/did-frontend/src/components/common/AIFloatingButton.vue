@@ -56,22 +56,22 @@ const handleClose = () => {
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: #0a192f;
-  color: #64ffda;
+  background: #ffffff;
+  color: #000000;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
   cursor: pointer;
   z-index: 1000;
   transition: all 0.3s ease;
-  border: 1px solid #64ffda;
+  border: 1px solid #000000;
 }
 
 .ai-floating-btn:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  background: rgba(10, 25, 47, 0.9);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .ai-floating-btn:active {
@@ -83,31 +83,31 @@ const handleClose = () => {
 }
 
 :deep(.ai-chat-dialog) {
-  border-radius: 0; /* 移除圆角 */
-  border: none; /* 移除边框 */
-  box-shadow: none; /* 移除阴影 */
-  background: transparent; /* 确保背景透明 */
-  padding: 0; /* 移除内边距 */
+  border-radius: 8px;
+  border: 1px solid #dddddd;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  padding: 0;
 }
 
 :deep(.el-dialog) {
-  border-radius: 0; /* 移除圆角 */
-  border: none; /* 移除边框 */
-  box-shadow: none; /* 移除阴影 */
-  background: transparent; /* 确保背景透明 */
-  padding: 0; /* 移除内边距 */
+  border-radius: 8px;
+  border: 1px solid #dddddd;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  padding: 0;
 }
 
 :deep(.el-dialog__header) {
-  background: #0a192f;
-  color: #e6f1ff;
+  background: #ffffff;
+  color: #000000;
   padding: 8px 12px;
   margin-right: 0;
-  border-bottom: 1px solid rgba(35, 53, 84, 0.3);
+  border-bottom: 1px solid #dddddd;
 }
 
 :deep(.el-dialog__title) {
-  color: #64ffda;
+  color: #000000;
   font-weight: 600;
   font-size: 16px;
 }
@@ -117,15 +117,15 @@ const handleClose = () => {
 } */
 
 :deep(.el-dialog__headerbtn .el-dialog__close) {
-  color: #64ffda;
+  color: #000000;
 }
 
 :deep(.el-dialog__headerbtn:hover .el-dialog__close) {
-  color: white;
+  color: #666666;
 }
 
 :deep(.el-dialog__body) {
-  padding: 0; /* 确保内容区域无额外内边距 */
-  background: transparent; /* 确保背景透明 */
+  padding: 0;
+  background: #ffffff;
 }
 </style>

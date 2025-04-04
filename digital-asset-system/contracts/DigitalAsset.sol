@@ -5,355 +5,288 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "./RBAC.sol"; // 导入 RBAC 合约
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "./RBAC.sol";
 
-/**
- * @title DigitalAsset
- * @dev 数字资产管理合约，支持资产注册、认证、元数据更新等功能。
- */
-contract DigitalAsset is ERC721, ERC721Burnable, ReentrancyGuard {
+contract DigitalAsset is ERC721, ERC721Burnable, ReentrancyGuard, EIP712 {
     using ECDSA for bytes32;
 
-    // RBAC 合约实例
-    RBAC public rbac;
-
-    // 资产元数据结构
+    RBAC public immutable rbac;
+    
     struct AssetMetadata {
-        string cid;                // IPFS内容标识符
-        bytes32 contentHash;       // 内容哈希
-        address registrant;        // 注册人
-        uint256 registrationDate; // 注册时间
-        bool isCertified;         // 是否认证
-        string encryptedKey;      // 加密密钥
-        uint256 version;          // 版本号
+        string cid;
+        bytes32 contentHash;
+        uint256 registrationDate;
+        uint256 version;
+        bool isCertified;
+        address[] pendingCertifiers;
+        mapping(address => bool) hasCertified;
     }
 
-    // 认证记录结构
     struct Certification {
-        address certifier;        // 认证人
-        uint256 timestamp;        // 时间戳
-        string comment;           // 认证评论
+        address certifier;
+        uint256 timestamp;
+        string comment;
     }
 
-    // 添加认证者评论结构体
-    struct CertifierComment {
-        address certifier;        // 认证者地址
-        string comment;           // 认证者评论
+    struct AssetMetadataView {
+        string cid;
+        bytes32 contentHash;
+        uint256 registrationDate;
+        uint256 version;
+        bool isCertified;
+        address[] pendingCertifiers;
     }
 
-    // 添加认证者哈希评论结构体
-    struct CertifierHashComment {
-        address certifier;        // 认证者地址
-        bytes32 commentHash;      // 认证者评论哈希值
-    }
+    uint256 private _tokenIdCounter;
+    mapping(uint256 => AssetMetadata) private _metadata;
+    mapping(uint256 => Certification[]) private _certifications;
+    mapping(string => bool) private _cidRegistry;
+    mapping(address => uint256) public nonces;
 
-    // 状态变量
-    uint256 private _tokenIdCounter; // Token ID 计数器
-    mapping(uint256 => AssetMetadata) private _metadata; // Token ID 到元数据的映射
-    mapping(uint256 => Certification[]) private _certificationHistory; // Token ID 到认证历史的映射
-    mapping(string => bool) private _cidRegistry; // CID 是否已注册的映射
+    bytes32 private constant REGISTER_TYPEHASH = 
+        keccak256("Register(address to,string cid,bytes32 contentHash,uint256 nonce)");
+    bytes32 private constant CERTIFY_TYPEHASH = 
+        keccak256("Certify(uint256 tokenId,string comment,uint256 nonce)");
+    bytes32 private constant UPDATE_TYPEHASH = 
+        keccak256("Update(uint256 tokenId,string newCid,bytes32 newHash,uint256 nonce)");
+    bytes32 private constant BURN_TYPEHASH = 
+        keccak256("Burn(uint256 tokenId,uint256 nonce)");
+    bytes32 private constant SET_CERTIFIERS_TYPEHASH = 
+        keccak256("SetCertifiers(uint256 tokenId,address[] certifiers,uint256 nonce)");
 
-    // 事件定义
-    event AssetRegistered(
-        uint256 indexed tokenId,
-        address indexed registrant,
-        string cid,
-        uint256 timestamp
-    );
-    event AssetCertified(
-        uint256 indexed tokenId,
-        address indexed certifier,
-        string comment,
-        uint256 timestamp
-    );
-    event MetadataUpdated(
-        uint256 indexed tokenId,
-        string newCid,
-        uint256 newVersion,
-        uint256 timestamp
-    );
-    event AssetBurned(
-        uint256 indexed tokenId,
-        address indexed burner,
-        uint256 timestamp
-    );
+    event AssetRegistered(uint256 indexed tokenId, address indexed registrant, string cid);
+    event AssetCertified(uint256 indexed tokenId, address indexed certifier);
+    event MetadataUpdated(uint256 indexed tokenId, string newCid);
+    event AssetBurned(uint256 indexed tokenId);
+    event CertifiersSet(uint256 indexed tokenId, address[] certifiers);
+    event AllCertified(uint256 indexed tokenId);
 
-    /**
-     * @dev 构造函数
-     * @param rbacAddress RBAC合约地址
-     */
-    constructor(address rbacAddress) ERC721("EnterpriseDigitalAsset", "EDA") {
+    constructor(address rbacAddress) 
+        ERC721("DigitalAsset", "DA") 
+        EIP712("DigitalAsset", "1") 
+    {
         require(rbacAddress != address(0), "Invalid RBAC address");
         rbac = RBAC(rbacAddress);
     }
 
-    /**
-     * @dev 检查调用者是否有注册员角色
-     */
-    modifier onlyRegistrar() {
-        require(
-            rbac.hasRole(rbac.REGISTRAR_ROLE(), msg.sender),
-            "Caller is not a registrar"
-        );
-        _;
-    }
-
-    /**
-     * @dev 检查调用者是否有认证员角色
-     */
-    modifier onlyCertifier() {
-        require(
-            rbac.hasRole(rbac.CERTIFIER_ROLE(), msg.sender),
-            "Caller is not a certifier"
-        );
-        _;
-    }
-
-    /**
-     * @dev 注册新资产
-     * @param to 接收者地址
-     * @param cid IPFS内容标识符
-     * @param contentHash 内容哈希
-     * @param encryptedKey 加密密钥
-     * @param signature 签名
-     */
+    // ===================== 核心功能 =====================
     function registerAsset(
         address to,
-        string memory cid,
+        string calldata cid,
         bytes32 contentHash,
-        string memory encryptedKey,
-        bytes memory signature
-    ) external nonReentrant onlyRegistrar returns (uint256) {
-        require(!_cidRegistry[cid], "CID already registered");
+        bytes calldata signature
+    ) external nonReentrant returns (uint256) {
+        require(!_cidRegistry[cid], "CID exists");
+        uint256 currentNonce = nonces[to];
+        _validateOperation(
+            keccak256(abi.encode(
+                REGISTER_TYPEHASH,
+                to,
+                keccak256(bytes(cid)),
+                contentHash,
+                currentNonce
+            )),
+            signature,
+            rbac.REGISTRAR_ROLE()
+        );
 
-        // 构造 EIP-712 消息哈希
-        bytes32 domainSeparator = keccak256(abi.encode(
-            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256(bytes("DigitalAsset")),
-            keccak256(bytes("1")),
-            block.chainid,
-            address(this)
-        ));
-
-        bytes32 structHash = keccak256(abi.encode(
-            keccak256(bytes("Register(address to,bytes32 contentHash)")),
-            to,
-            contentHash
-        ));
-
-        bytes32 messageHash = ECDSA.toTypedDataHash(domainSeparator, structHash);
-
-        // 验证签名
-        address recovered = ECDSA.recover(messageHash, signature);
-        require(recovered == to, "Invalid signature");
-
-        // 分配 Token ID 并铸造 NFT
         uint256 tokenId = _tokenIdCounter++;
         _safeMint(to, tokenId);
-
-        // 存储元数据
-        _metadata[tokenId] = AssetMetadata({
-            cid: cid,
-            contentHash: contentHash,
-            registrant: to,
-            registrationDate: block.timestamp,
-            isCertified: false,
-            encryptedKey: encryptedKey,
-            version: 1
-        });
-
-        // 标记 CID 为已注册
+        
+        AssetMetadata storage metadata = _metadata[tokenId];
+        metadata.cid = cid;
+        metadata.contentHash = contentHash;
+        metadata.registrationDate = block.timestamp;
+        metadata.version = 1;
+        metadata.isCertified = false;
+        metadata.pendingCertifiers = new address[](0);
+        
         _cidRegistry[cid] = true;
-
-        // 触发事件
-        emit AssetRegistered(tokenId, to, cid, block.timestamp);
+        emit AssetRegistered(tokenId, to, cid);
+        nonces[to] = currentNonce + 1;
         return tokenId;
     }
 
-    /**
-     * @dev 认证资产 - 支持哈希评论版本
-     * @param tokenId 资产 ID
-     * @param certifierHashComments 认证者哈希评论数组
-     * @param signatures 认证人签名数组
-     */
-    function certifyAssetWithHashComments(
+    function setCertifiers(
         uint256 tokenId,
-        CertifierHashComment[] memory certifierHashComments,
-        bytes[] memory signatures
-    ) external onlyCertifier {
-        require(_exists(tokenId), "Asset not exist");
-        require(signatures.length >= 2, "Requires multi-sig");
-        require(certifierHashComments.length == signatures.length, "Comments and signatures must match");
+        address[] calldata certifiers,
+        bytes calldata signature
+    ) external nonReentrant {
+        require(ownerOf(tokenId) == msg.sender, "Not owner");
+        uint256 currentNonce = nonces[msg.sender];
+        _validateOperation(
+            keccak256(abi.encode(
+                SET_CERTIFIERS_TYPEHASH,
+                tokenId,
+                keccak256(abi.encodePacked(certifiers)),
+                currentNonce
+            )),
+            signature,
+            bytes32(0)
+        );
 
-        // 验证签名
-        address[] memory signers = new address[](signatures.length);
-        for (uint i = 0; i < signatures.length; i++) {
-            address certifier = certifierHashComments[i].certifier;
-            bytes32 commentHash = certifierHashComments[i].commentHash;
-            
-            // 直接使用评论哈希构建消息哈希
-            bytes32 messageHash = keccak256(
-                abi.encodePacked(
-                    "\x19Ethereum Signed Message:\n32",
-                    keccak256(abi.encodePacked(tokenId, commentHash))
-                )
-            );
-            
-            signers[i] = ECDSA.recover(messageHash, signatures[i]);
-            require(signers[i] == certifier, "Signature does not match certifier");
-            require(
-                rbac.hasRole(rbac.CERTIFIER_ROLE(), signers[i]),
-                "Invalid certifier"
-            );
-            
-            // 检查签名者是否重复
-            for (uint j = 0; j < i; j++) {
-                require(signers[i] != signers[j], "Duplicate signer");
+        AssetMetadata storage metadata = _metadata[tokenId];
+        metadata.pendingCertifiers = certifiers;
+        for (uint i = 0; i < certifiers.length; i++) {
+            metadata.hasCertified[certifiers[i]] = false;
+        }
+        metadata.isCertified = false;
+        nonces[msg.sender] = currentNonce + 1;
+        emit CertifiersSet(tokenId, certifiers);
+    }
+
+    function certifyAsset(
+        uint256 tokenId,
+        string calldata comment,
+        bytes calldata signature
+    ) external nonReentrant {
+        require(_exists(tokenId), "Invalid token");
+        uint256 currentNonce = nonces[msg.sender];
+        _validateOperation(
+            keccak256(abi.encode(
+                CERTIFY_TYPEHASH,
+                tokenId,
+                keccak256(bytes(comment)),
+                currentNonce
+            )),
+            signature,
+            rbac.CERTIFIER_ROLE()
+        );
+
+        AssetMetadata storage metadata = _metadata[tokenId];
+        require(metadata.pendingCertifiers.length > 0, "No pending certifiers");
+        require(!metadata.hasCertified[msg.sender], "Already certified");
+        
+        bool isPendingCertifier = false;
+        for (uint i = 0; i < metadata.pendingCertifiers.length; i++) {
+            if (metadata.pendingCertifiers[i] == msg.sender) {
+                isPendingCertifier = true;
+                break;
             }
-            
-            // 存储每个认证者的评论 - 使用哈希值的十六进制表示
-            _certificationHistory[tokenId].push(Certification({
-                certifier: certifier,
-                timestamp: block.timestamp,
-                comment: toHexString(commentHash)
-            }));
         }
-        
-        // 更新资产认证状态
-        _metadata[tokenId].isCertified = true;
-        
-        // 触发认证事件
-        emit AssetCertified(tokenId, msg.sender, "Multiple certifiers approved with hash comments", block.timestamp);
-    }
-    
-    /**
-     * @dev 将字节转换为十六进制字符串
-     * @param value 要转换的字节
-     */
-    function toHexString(bytes32 value) internal pure returns (string memory) {
-        bytes memory buffer = new bytes(64);
-        for (uint256 i = 0; i < 32; i++) {
-            buffer[i*2] = bytes1(uint8(uint8(value[i] >> 4) + (uint8(value[i] >> 4) < 10 ? 48 : 87)));
-            buffer[i*2+1] = bytes1(uint8(uint8(value[i] & 0x0f) + (uint8(value[i] & 0x0f) < 10 ? 48 : 87)));
+        require(isPendingCertifier, "Not a pending certifier");
+
+        metadata.hasCertified[msg.sender] = true;
+        _certifications[tokenId].push(Certification({
+            certifier: msg.sender,
+            timestamp: block.timestamp,
+            comment: comment
+        }));
+
+        // 检查是否所有认证者都已完成认证
+        bool allCertified = true;
+        for (uint i = 0; i < metadata.pendingCertifiers.length; i++) {
+            if (!metadata.hasCertified[metadata.pendingCertifiers[i]]) {
+                allCertified = false;
+                break;
+            }
         }
-        return string(buffer);
+
+        if (allCertified) {
+            metadata.isCertified = true;
+            emit AllCertified(tokenId);
+        }
+
+        nonces[msg.sender] = currentNonce + 1;
+        emit AssetCertified(tokenId, msg.sender);
     }
 
-    /**
-     * @dev 更新资产元数据
-     * @param tokenId 资产 ID
-     * @param newCid 新的 CID
-     * @param newHash 新的内容哈希
-     * @param newKey 新的加密密钥
-     */
     function updateMetadata(
         uint256 tokenId,
-        string memory newCid,
+        string calldata newCid,
         bytes32 newHash,
-        string memory newKey
+        bytes calldata signature
     ) external nonReentrant {
-        require(ownerOf(tokenId) == msg.sender, "Not asset owner"); // 检查调用者是否为资产所有者
-        require(!_cidRegistry[newCid], "CID already exists");       // 检查新 CID 是否已注册
+        require(ownerOf(tokenId) == msg.sender, "Not owner");
+        require(!_cidRegistry[newCid], "CID exists");
+        uint256 currentNonce = nonces[msg.sender];
+        _validateOperation(
+            keccak256(abi.encode(
+                UPDATE_TYPEHASH,
+                tokenId,
+                keccak256(bytes(newCid)),
+                newHash,
+                currentNonce
+            )),
+            signature,
+            bytes32(0)
+        );
 
-        // 更新元数据
-        AssetMetadata storage meta = _metadata[tokenId];
-        _cidRegistry[meta.cid] = false; // 释放旧 CID
-        meta.cid = newCid;
-        meta.contentHash = newHash;
-        meta.encryptedKey = newKey;
-        meta.version++;
-        _cidRegistry[newCid] = true; // 标记新 CID 为已注册
-
-        // 触发事件
-        emit MetadataUpdated(tokenId, newCid, meta.version, block.timestamp);
+        _cidRegistry[_metadata[tokenId].cid] = false;
+        _metadata[tokenId].cid = newCid;
+        _metadata[tokenId].contentHash = newHash;
+        _metadata[tokenId].version++;
+        _cidRegistry[newCid] = true;
+        nonces[msg.sender] = currentNonce + 1;
+        emit MetadataUpdated(tokenId, newCid);
     }
 
-    /**
-     * @dev 获取资产元数据
-     * @param tokenId 资产 ID
-     */
-    function getAssetMetadata(uint256 tokenId) 
-        external 
-        view 
-        returns (AssetMetadata memory) 
-    {
-        require(_exists(tokenId), "Asset not exist"); // 检查资产是否存在
-        return _metadata[tokenId];
-    }
+    function burnAsset(
+        uint256 tokenId,
+        bytes calldata signature
+    ) external nonReentrant {
+        require(_isApprovedOrOwner(msg.sender, tokenId), "Not authorized");
+        uint256 currentNonce = nonces[msg.sender];
+        _validateOperation(
+            keccak256(abi.encode(
+                BURN_TYPEHASH,
+                tokenId,
+                currentNonce
+            )),
+            signature,
+            bytes32(0)
+        );
 
-    /**
-     * @dev 获取认证历史
-     * @param tokenId 资产 ID
-     */
-    function getCertificationHistory(uint256 tokenId)
-        external
-        view
-        returns (Certification[] memory)
-    {
-        require(_exists(tokenId), "Asset not exist"); // 检查资产是否存在
-        return _certificationHistory[tokenId];
-    }
-
-    /**
-     * @dev 验证资产完整性
-     * @param tokenId 资产 ID
-     * @param hash 内容哈希
-     */
-    function verifyIntegrity(uint256 tokenId, bytes32 hash) 
-        external 
-        view 
-        returns (bool) 
-    {
-        require(_exists(tokenId), "Asset not exist"); // 检查资产是否存在
-        return _metadata[tokenId].contentHash == hash;
-    }
-
-    /**
-     * @dev 支持接口实现
-     */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721)
-        returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
-    }
-
-    // 为私有映射提供内部方法
-    function _setCIDRegistry(string memory cid, bool value) internal {
-        _cidRegistry[cid] = value;
-    }
-
-    function _deleteMetadata(uint256 tokenId) internal {
+        _cidRegistry[_metadata[tokenId].cid] = false;
         delete _metadata[tokenId];
-    }
-
-    function _deleteCertificationHistory(uint256 tokenId) internal {
-        delete _certificationHistory[tokenId];
-    }
-
-    /**
-     * @dev 销毁资产 - 仅限资产所有者或已授权地址
-     * @param tokenId 要销毁的资产ID
-     */
-    function burnAsset(uint256 tokenId) external {
-        require(_isApprovedOrOwner(_msgSender(), tokenId), "Caller is not owner or approved");
-        
-        // 保存资产CID以释放
-        string memory cid = _metadata[tokenId].cid;
-        
-        // 清理CID注册表
-        _setCIDRegistry(cid, false);
-        
-        // 清理元数据和认证历史
-        _deleteMetadata(tokenId);
-        _deleteCertificationHistory(tokenId);
-        
-        // 销毁NFT (使用ERC721的_burn方法)
+        delete _certifications[tokenId];
         _burn(tokenId);
+        nonces[msg.sender] = currentNonce + 1;
+        emit AssetBurned(tokenId);
+    }
+
+    // ===================== 视图函数 =====================
+    function getMetadata(uint256 tokenId) external view returns (AssetMetadataView memory) {
+        require(_exists(tokenId), "Invalid token");
+        AssetMetadata storage metadata = _metadata[tokenId];
+        return AssetMetadataView({
+            cid: metadata.cid,
+            contentHash: metadata.contentHash,
+            registrationDate: metadata.registrationDate,
+            version: metadata.version,
+            isCertified: metadata.isCertified,
+            pendingCertifiers: metadata.pendingCertifiers
+        });
+    }
+
+    function getCertifications(uint256 tokenId) external view returns (Certification[] memory) {
+        require(_exists(tokenId), "Invalid token");
+        return _certifications[tokenId];
+    }
+
+    function getPendingCertifiers(uint256 tokenId) external view returns (address[] memory) {
+        require(_exists(tokenId), "Invalid token");
+        return _metadata[tokenId].pendingCertifiers;
+    }
+
+    function hasCertified(uint256 tokenId, address certifier) external view returns (bool) {
+        require(_exists(tokenId), "Invalid token");
+        return _metadata[tokenId].hasCertified[certifier];
+    }
+
+    // ===================== 内部函数 =====================
+    function _validateOperation(
+        bytes32 structHash,
+        bytes calldata signature,
+        bytes32 requiredRole
+    ) internal view {
+        address signer = _hashTypedDataV4(structHash).recover(signature);
         
-        // 触发事件
-        emit AssetBurned(tokenId, _msgSender(), block.timestamp);
+        if(requiredRole != bytes32(0)) {
+            require(rbac.hasRole(requiredRole, signer), "Unauthorized role");
+        }
+        
+        require(signer == msg.sender, "Signer mismatch");
     }
 }

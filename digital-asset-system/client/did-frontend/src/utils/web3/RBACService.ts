@@ -20,59 +20,119 @@ export class RBACService extends BaseWeb3Service {
     );
   }
 
-  async grantRole(address: string, role: string) {
+  async grantRoleWithSignature(
+    address: string,
+    role: string,
+    deadline: number
+  ) {
     await this.ensureConnection();
     
     return this.withRetry(async () => {
       try {
-        const signerAddress = await this.signer.getAddress();
-        console.log('Current signer:', signerAddress);
+        // 获取角色哈希
+        const roleHash = await this.getRoleHash(role);
         
-        // 直接从合约获取角色哈希
-        let roleHash;
-        switch(role) {
-          case 'REGISTRAR_ROLE':
-            roleHash = await this.getRoleHash('REGISTRAR_ROLE');
-            break;
-          case 'CERTIFIER_ROLE':
-            roleHash = await this.getRoleHash('CERTIFIER_ROLE');
-            break;
-          case 'ADMIN_ROLE':
-            roleHash = await this.getRoleHash('ADMIN_ROLE');
-            break;
-          default:
-            throw new Error('无效的角色类型');
-        }
+        // 获取当前 nonce
+        const nonce = await this.contract.nonces(address);
         
-        // 检查调用者权限
-        const hasDefaultAdminRole = await this.contract.hasRole(
-          await this.contract.DEFAULT_ADMIN_ROLE(),
-          signerAddress
+        // 构造 EIP712 域
+        const domain = {
+          name: 'RBACSystem',
+          version: '1',
+          chainId: await this.provider.getNetwork().then(n => n.chainId),
+          verifyingContract: this.contract.target.toString()
+        };
+        
+        // 构造类型
+        const types = {
+          RoleGrant: [
+            { name: 'role', type: 'bytes32' },
+            { name: 'account', type: 'address' },
+            { name: 'nonce', type: 'uint256' },
+            { name: 'deadline', type: 'uint256' }
+          ]
+        };
+        
+        // 构造值
+        const value = {
+          role: roleHash,
+          account: address,
+          nonce: nonce,
+          deadline: deadline
+        };
+        
+        // 签名
+        const signature = await this.signer.signTypedData(domain, types, value);
+        
+        // 调用合约
+        const tx = await this.contract.grantRoleWithSignature(
+          roleHash,
+          address,
+          deadline,
+          signature
         );
-        const hasAdminRole = await this.contract.hasRole(
-          await this.contract.ADMIN_ROLE(),
-          signerAddress
-        );
         
-        console.log('Has DEFAULT_ADMIN_ROLE:', hasDefaultAdminRole);
-        console.log('Has ADMIN_ROLE:', hasAdminRole);
-        
-        // 根据角色类型检查权限
-        const hasRequiredRole = role === 'ADMIN_ROLE' ? 
-          hasDefaultAdminRole : 
-          (hasDefaultAdminRole || hasAdminRole);
-        
-        if (!hasRequiredRole) {
-          throw new Error('调用者没有该角色的管理员权限');
-        }
-        
-        console.log('Role hash:', roleHash);
-        console.log('Granting role to address:', address);
-        
-        // 执行授权
-        const tx = await this.contract.grantRole(roleHash, address);
         await this.monitorTransaction(tx, '授予角色');
+        return true;
+      } catch (error) {
+        throw await this.handleError(error);
+      }
+    });
+  }
+
+  async revokeRoleWithSignature(
+    address: string,
+    role: string,
+    deadline: number
+  ) {
+    await this.ensureConnection();
+    
+    return this.withRetry(async () => {
+      try {
+        // 获取角色哈希
+        const roleHash = await this.getRoleHash(role);
         
+        // 获取当前 nonce
+        const nonce = await this.contract.nonces(address);
+        
+        // 构造 EIP712 域
+        const domain = {
+          name: 'RBACSystem',
+          version: '1',
+          chainId: await this.provider.getNetwork().then(n => n.chainId),
+          verifyingContract: this.contract.target.toString()
+        };
+        
+        // 构造类型
+        const types = {
+          RoleRevoke: [
+            { name: 'role', type: 'bytes32' },
+            { name: 'account', type: 'address' },
+            { name: 'nonce', type: 'uint256' },
+            { name: 'deadline', type: 'uint256' }
+          ]
+        };
+        
+        // 构造值
+        const value = {
+          role: roleHash,
+          account: address,
+          nonce: nonce,
+          deadline: deadline
+        };
+        
+        // 签名
+        const signature = await this.signer.signTypedData(domain, types, value);
+        
+        // 调用合约
+        const tx = await this.contract.revokeRoleWithSignature(
+          roleHash,
+          address,
+          deadline,
+          signature
+        );
+        
+        await this.monitorTransaction(tx, '撤销角色');
         return true;
       } catch (error) {
         throw await this.handleError(error);
@@ -168,6 +228,12 @@ export class RBACService extends BaseWeb3Service {
           break;
         case 'ADMIN_ROLE':
           roleHash = await this.contract.ADMIN_ROLE();
+          break;
+        case 'DID_MANAGER_ROLE':
+          roleHash = await this.contract.DID_MANAGER_ROLE();
+          break;
+        case 'KEY_MANAGER_ROLE':
+          roleHash = await this.contract.KEY_MANAGER_ROLE();
           break;
         default:
           throw new Error('无效的角色类型');

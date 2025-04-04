@@ -13,7 +13,6 @@ import java.util.Optional;
 /**
  * 认证记录仓库接口
  */
-@Repository
 public interface CertificationRecordRepository extends JpaRepository<CertificationRecord, Long>, JpaSpecificationExecutor<CertificationRecord> {
     
     /**

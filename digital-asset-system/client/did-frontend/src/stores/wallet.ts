@@ -42,9 +42,10 @@ export const useWalletStore = defineStore('wallet', {
         this.cleanupListeners();
 
         // 请求账户访问
-        const accounts = await ethereum.request({
+        const accountsLowCase = await ethereum.request({
           method: 'eth_requestAccounts'
         }) as string[];
+        const accounts = accountsLowCase.map(addr => ethers.getAddress(addr));
         console.log('accounts:', accounts);
 
         if (!accounts?.length) {
@@ -65,7 +66,7 @@ export const useWalletStore = defineStore('wallet', {
         // 处理链ID转换
         const chainId = this.parseChainId(network.chainId);
 
-        // 更新状态
+
         this.address = accounts[0];
         this.chainId = chainId;
         this.provider = provider;

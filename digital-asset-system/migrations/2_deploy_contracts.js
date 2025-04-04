@@ -23,13 +23,4 @@ module.exports = async function(deployer, network, accounts) {
   await deployer.deploy(DigitalAsset, rbacInstance.address);
   const digitalAssetInstance = await DigitalAsset.deployed();
   console.log('DigitalAsset deployed at:', digitalAssetInstance.address);
-
-  // 5. 设置初始角色（可选）
-  console.log('Setting up initial roles...');
-  const ADMIN_ROLE = await rbacInstance.ADMIN_ROLE();
-  const REGISTRAR_ROLE = await rbacInstance.REGISTRAR_ROLE();
-  const CERTIFIER_ROLE = await rbacInstance.CERTIFIER_ROLE();
-  
-  // 部署者默认获得 DEFAULT_ADMIN_ROLE
-  console.log('Deployer address:', accounts[0]);
 };

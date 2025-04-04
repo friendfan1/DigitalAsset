@@ -1,223 +1,182 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
-/**
- * @title DIDRegistry
- * @dev 去中心化身份(DID)注册合约
- */
-contract DIDRegistry is Ownable, ReentrancyGuard {
-    using SafeMath for uint256;
+contract DIDRegistry is EIP712, ReentrancyGuard, Ownable2Step {
+    using ECDSA for bytes32;
 
-    // DID结构体定义
+    // EIP-712类型哈希
+    bytes32 public constant CREATE_TYPEHASH = 
+        keccak256("CreateDID(bytes32 docHash,uint256 nonce)");
+    bytes32 public constant UPDATE_DID_TYPEHASH = 
+        keccak256("UpdateDID(bytes32 newDocHash,uint256 nonce,uint256 deadline)");
+    bytes32 public constant WITHDRAW_TYPEHASH = 
+        keccak256("Withdraw(uint256 nonce,uint256 deadline)");
+    bytes32 public constant REPUTATION_TYPEHASH = 
+        keccak256("Reputation(address target,int256 delta,string reason,uint256 nonce,uint256 deadline)");
+
+    // DID数据结构
     struct DID {
-        address owner;          // DID拥有者
-        bytes32 docHash;        // 文档哈希
-        uint256 created;        // 创建时间
-        uint256 reputation;     // 声誉值
-        bool active;            // 是否激活
+        bytes32 docHash;
+        uint256 created;
+        uint256 reputation;
+        bool active;
+        address controller; // 地址即公钥标识
     }
 
-    // 声誉变更记录结构体
     struct ReputationChange {
-        address operator;       // 操作者
-        int256 delta;          // 变更值
-        uint256 timestamp;     // 时间戳
-        string reason;         // 变更原因
+        address operator;
+        int256 delta;
+        uint256 timestamp;
+        string reason;
     }
 
-    // 常量定义
+    // 系统常量
     uint256 public constant STAKE_AMOUNT = 0.01 ether;
     uint256 public constant MAX_REPUTATION = 1000;
     uint256 public constant MIN_REPUTATION = 0;
     uint256 public constant INITIAL_REPUTATION = 100;
+    uint256 public constant SIGNATURE_VALIDITY = 300;
 
-    // 状态变量
-    mapping(address => DID) public dids;
-    mapping(bytes32 => address) private hashToOwner;
-    mapping(address => ReputationChange[]) public reputationHistory;
-    
-    // 事件定义
-    event DIDCreated(address indexed user, bytes32 docHash, uint256 timestamp);
-    event DIDUpdated(address indexed user, bytes32 newDocHash, uint256 timestamp);
-    event DIDDeactivated(address indexed user, uint256 timestamp);
-    event ReputationUpdated(
-        address indexed user,
+    mapping(address => DID) private _dids;
+    mapping(bytes32 => address) private _docHashToOwner;
+    mapping(address => ReputationChange[]) private _reputationHistory;
+    mapping(address => uint256) public nonces;
+
+    event DIDRegistered(address indexed owner, bytes32 docHash);
+    event DIDUpdated(address indexed owner, bytes32 newDocHash);
+    event DIDDeactivated(address indexed owner);
+    event ReputationChanged(
+        address indexed target,
+        address indexed operator,
         uint256 newScore,
-        int256 delta,
-        string reason,
-        uint256 timestamp
+        int256 delta
     );
-    event StakeWithdrawn(address indexed user, uint256 amount, uint256 timestamp);
+    event StakeWithdrawn(address indexed owner, uint256 amount);
 
-    // 修饰器
-    modifier onlyActiveDID() {
-        require(dids[msg.sender].active, "DID not active");
+    modifier onlyActiveDID(address user) {
+        require(_dids[user].active, "DID inactive");
         _;
     }
 
-    modifier validReputationChange(int256 delta) {
-        require(delta != 0, "Delta cannot be zero");
-        _;
-    }
+    constructor() EIP712("DIDRegistry", "1") {}
 
-    /**
-     * @dev 检查DID是否存在且激活
-     * @param user 用户地址
-     */
-    function isDIDActive(address user) public view returns (bool) {
-        return dids[user].active;
-    }
+    // ===================== 核心功能 =====================
+    function createDID(
+        bytes32 docHash,
+        bytes calldata signature
+    ) external payable nonReentrant {
+        require(msg.value == STAKE_AMOUNT, "Invalid stake");
+        require(_docHashToOwner[docHash] == address(0), "DocHash exists");
+        require(!_dids[msg.sender].active, "DID exists");
 
-    /**
-     * @dev 获取DID详细信息
-     * @param user 用户地址
-     */
-    function getDIDDetails(address user) 
-        external 
-        view 
-        returns (
-            address owner,
-            bytes32 docHash,
-            uint256 created,
-            uint256 reputation,
-            bool active
-        ) 
-    {
-        DID storage did = dids[user];
-        return (
-            did.owner,
-            did.docHash,
-            did.created,
-            did.reputation,
-            did.active
-        );
-    }
+        // 验证创建签名
+        bytes32 structHash = keccak256(abi.encode(
+            CREATE_TYPEHASH,
+            docHash,
+            nonces[msg.sender]
+        ));
+        _verifySignature(structHash, signature, msg.sender);
+        nonces[msg.sender]++;
 
-    /**
-     * @dev 创建DID
-     * @param docHash 文档哈希
-     */
-    function createDID(bytes32 docHash) external payable nonReentrant {
-        require(msg.value == STAKE_AMOUNT, "Incorrect stake");
-        require(hashToOwner[docHash] == address(0), "Hash already used");
-        require(!isDIDActive(msg.sender), "DID already exists");
-
-        hashToOwner[docHash] = msg.sender;
-        dids[msg.sender] = DID({
-            owner: msg.sender,
+        _docHashToOwner[docHash] = msg.sender;
+        _dids[msg.sender] = DID({
             docHash: docHash,
             created: block.timestamp,
             reputation: INITIAL_REPUTATION,
-            active: true
+            active: true,
+            controller: msg.sender
         });
-        
-        emit DIDCreated(msg.sender, docHash, block.timestamp);
+
+        emit DIDRegistered(msg.sender, docHash);
     }
 
-    /**
-     * @dev 更新DID文档
-     * @param newDocHash 新的文档哈希
-     */
-    function updateDID(bytes32 newDocHash) external onlyActiveDID {
-        DID storage did = dids[msg.sender];
-        require(hashToOwner[newDocHash] == address(0), "Hash already used");
-        
-        hashToOwner[did.docHash] = address(0);
-        did.docHash = newDocHash;
-        hashToOwner[newDocHash] = msg.sender;
-        
-        emit DIDUpdated(msg.sender, newDocHash, block.timestamp);
-    }
+    function updateDID(
+        bytes32 newDocHash,
+        uint256 deadline,
+        bytes calldata signature
+    ) external onlyActiveDID(msg.sender) {
+        require(block.timestamp <= deadline, "Expired");
+        require(_docHashToOwner[newDocHash] == address(0), "DocHash exists");
 
-    /**
-     * @dev 提取质押金额
-     */
-    function withdrawStake() external onlyActiveDID nonReentrant {
-        DID storage did = dids[msg.sender];
-        require(did.reputation >= 50, "Reputation too low");
-        
-        did.active = false;
-        hashToOwner[did.docHash] = address(0);
-        
-        uint256 amount = STAKE_AMOUNT;
-        (bool success, ) = msg.sender.call{value: amount}("");
-        require(success, "Withdrawal failed");
-        
-        emit StakeWithdrawn(msg.sender, amount, block.timestamp);
-    }
-
-    /**
-     * @dev 更新声誉值
-     * @param user 目标用户
-     * @param delta 声誉变化值
-     * @param reason 变更原因
-     */
-    function updateReputation(
-        address user,
-        int256 delta,
-        string calldata reason
-    ) external validReputationChange(delta) {
-        require(
-            msg.sender == owner() || dids[msg.sender].reputation > 200,
-            "Insufficient privileges"
-        );
-        require(isDIDActive(user), "Target DID not active");
-        
-        DID storage did = dids[user];
-        int256 newScore = int256(did.reputation) + delta;
-        uint256 finalScore = uint256(
-            newScore > int256(MAX_REPUTATION) 
-                ? int256(MAX_REPUTATION) 
-                : newScore < int256(MIN_REPUTATION) 
-                    ? int256(MIN_REPUTATION) 
-                    : newScore
-        );
-        
-        did.reputation = finalScore;
-        reputationHistory[user].push(ReputationChange(
-            msg.sender,
-            delta,
-            block.timestamp,
-            reason
+        bytes32 structHash = keccak256(abi.encode(
+            UPDATE_DID_TYPEHASH,
+            newDocHash,
+            nonces[msg.sender],
+            deadline
         ));
+        _verifySignature(structHash, signature, msg.sender);
+        nonces[msg.sender]++;
+
+        DID storage did = _dids[msg.sender];
+        _docHashToOwner[did.docHash] = address(0);
+        did.docHash = newDocHash;
+        _docHashToOwner[newDocHash] = msg.sender;
+
+        emit DIDUpdated(msg.sender, newDocHash);
+    }
+
+    // ===================== 工具函数 =====================
+    function _verifySignature(
+        bytes32 structHash,
+        bytes calldata signature,
+        address expectedSigner
+    ) internal view {
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address signer = digest.recover(signature);
+        require(signer == expectedSigner, "Invalid signature");
+        require(signer != address(0), "ECDSA: invalid signature");
+    }
+
+    // ===================== 公共函数 =====================
+    function getDID(address user) external view returns (
+        bytes32 docHash,
+        uint256 created,
+        uint256 reputation,
+        bool active,
+        address controller
+    ) {
+        DID memory did = _dids[user];
+        return (
+            did.docHash,
+            did.created,
+            did.reputation,
+            did.active,
+            did.controller
+        );
+    }
+
+    function isDIDActive(address user) external view returns (bool) {
+        return _dids[user].active;
+    }
+
+    function getDocHashOwner(bytes32 docHash) external view returns (address) {
+        return _docHashToOwner[docHash];
+    }
+
+    function getReputationHistory(address user) external view returns (
+        address[] memory operators,
+        int256[] memory deltas,
+        uint256[] memory timestamps,
+        string[] memory reasons
+    ) {
+        ReputationChange[] storage history = _reputationHistory[user];
+        uint256 length = history.length;
         
-        emit ReputationUpdated(user, finalScore, delta, reason, block.timestamp);
-    }
-
-    /**
-     * @dev 验证DID文档
-     * @param user 用户地址
-     * @param hash 文档哈希
-     */
-    function verifyDID(address user, bytes32 hash) 
-        external 
-        view 
-        returns(bool) 
-    {
-        return isDIDActive(user) && dids[user].docHash == hash;
-    }
-
-    /**
-     * @dev 获取声誉变更历史
-     * @param user 用户地址
-     */
-    function getReputationHistory(address user) 
-        external 
-        view 
-        returns (ReputationChange[] memory) 
-    {
-        return reputationHistory[user];
-    }
-    
-    /**
-    * @dev 获取DID
-    * @param docHash 文档哈希
-    */
-    function getDID(bytes32 docHash) external view returns (address) {
-        return hashToOwner[docHash];
+        operators = new address[](length);
+        deltas = new int256[](length);
+        timestamps = new uint256[](length);
+        reasons = new string[](length);
+        
+        for (uint256 i = 0; i < length; i++) {
+            operators[i] = history[i].operator;
+            deltas[i] = history[i].delta;
+            timestamps[i] = history[i].timestamp;
+            reasons[i] = history[i].reason;
+        }
     }
 }

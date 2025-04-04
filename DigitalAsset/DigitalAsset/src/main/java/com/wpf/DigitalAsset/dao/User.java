@@ -37,6 +37,8 @@ public class User implements UserDetails {
     private VerificationStatus verificationStatus;
     @Column(name = "web3address")
     private String web3Address;
+    @Column(name = "public_key")
+    private String publicKey;
 
     public VerificationStatus getVerificationStatus() {
         return verificationStatus;
@@ -52,6 +54,14 @@ public class User implements UserDetails {
 
     public void setWeb3address(String web3address) {
         this.web3Address = web3address;
+    }
+
+    public String getPublicKey() {
+        return publicKey;
+    }
+
+    public void setPublicKey(String publicKey) {
+        this.publicKey = publicKey;
     }
 
     @Override
