@@ -665,7 +665,7 @@ export class DigitalAssetService extends BaseWeb3Service {
     );
   }
 
-  public async certifyAsset(tokenId: number, comment: string) {
+  public async certifyAsset(tokenId: number, comment: string, token: string) {
     await this.ensureConnection();
     const address = await this.signer.getAddress();
     const currentNonce = await this.contract.nonces(address);
@@ -675,9 +675,27 @@ export class DigitalAssetService extends BaseWeb3Service {
       { tokenId, comment, nonce: currentNonce }
     );
 
+    // 调用智能合约
     const tx = await this.contract.certifyAsset(tokenId, comment, signature);
     const receipt = await tx.wait();
-    return this.parseTransactionReceipt(receipt!, 'AssetCertified');
+    const result = this.parseTransactionReceipt(receipt!, 'AssetCertified');
+
+    // 调用后端接口更新认证状态
+    try {
+      await axios.post('/api/certification/sign', {
+        tokenId,
+        certifierAddress: address,
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+    } catch (error) {
+      console.error('更新后端认证状态失败:', error);
+      throw new Error('认证成功但更新后端状态失败，请联系管理员');
+    }
+
+    return result;
   }
 
   public async updateMetadata(tokenId: number, file: File) {

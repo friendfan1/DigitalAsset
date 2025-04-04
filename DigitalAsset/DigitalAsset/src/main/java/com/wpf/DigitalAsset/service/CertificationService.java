@@ -80,4 +80,5 @@ public interface CertificationService {
     public List<CertificationSignatureDTO> getCertificationSignature(Long tokenId);
 
     public Void updateCertification(UpdateDatabaseDTO updateDatabaseDTO);
+    public Void updateCertification(CertificationActionDTO updateDatabaseDTO);
 }

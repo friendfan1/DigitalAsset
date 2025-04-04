@@ -187,7 +187,7 @@ public class CertificationController {
     public ResponseEntity<ApiResponse<String>> submitSignature(
             @RequestBody CertificationActionDTO signatureDTO) {
         try {
-            certificationService.saveCertificationRequest(signatureDTO);
+            certificationService.updateCertification(signatureDTO);
             return ResponseEntity.ok(new ApiResponse<>(true, "认证签名提交成功", null));
         } catch (Exception e) {
             logger.severe("认证签名提交失败: " + e.getMessage());

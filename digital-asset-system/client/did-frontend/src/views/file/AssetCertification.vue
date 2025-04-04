@@ -781,9 +781,9 @@ const certifyAsset = async () => {
     const service = await getDigitalAssetService()
     await service.certifyAsset(
       Number(selectedAssetForCert.value.tokenId),
-      certificationForm.value.comment
+      certificationForm.value.comment,
+      userStore.profile?.token || ''
     )
-    
     ElMessage.success('认证成功')
     certificationDialogVisible.value = false
     await fetchAssets()
@@ -815,7 +815,8 @@ const certifyBatchAssets = async () => {
       try {
         await service.certifyAsset(
           Number(asset.tokenId),
-          batchCertificationForm.value.comment
+          batchCertificationForm.value.comment,
+          userStore.profile?.token || ''
         )
         successCount++
       } catch (error) {

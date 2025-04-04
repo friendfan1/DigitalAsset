@@ -147,23 +147,28 @@ public class CertificationServiceImpl implements CertificationService {
 
     @Override
     public void saveCertificationRequest(CertificationActionDTO requestDTO) {
-        AssetCertificationRequest assetCertificationRequest = requestRepository
-                .findByTokenIdAndCertifierAddress(requestDTO.getTokenId(), requestDTO.getCertifierAddress());
-        assetCertificationRequest.setReason(requestDTO.getReason());
-        assetCertificationRequest.setCertificationTime(requestDTO.getTimestamp().toLocalDateTime());
-        assetCertificationRequest.setStatus(AssetCertificationRequest.RequestStatus.APPROVED);
-        requestRepository.save(assetCertificationRequest);
-        CertificationSignature certificationSignature = new CertificationSignature();
-        certificationSignature.setRequestId(assetCertificationRequest.getId());
-        certificationSignature.setCertifierAddress(requestDTO.getCertifierAddress());
-        certificationSignature.setMessageToSign(requestDTO.getMessageToSign());
-        certificationSignature.setMessageHash(requestDTO.getMessageHash());
-        certificationSignature.setReasonHash(requestDTO.getReasonHash());
-        certificationSignature.setSignature(requestDTO.getSignature());
-        certificationSignature.setComment(requestDTO.getReason());
-        certificationSignature.setTimeStamp(requestDTO.getTimestamp());
-        certificationSignatureRepository.save(certificationSignature);
+
     }
+
+//    @Override
+//    public void saveCertificationRequest(CertificationActionDTO requestDTO) {
+//        AssetCertificationRequest assetCertificationRequest = requestRepository
+//                .findByTokenIdAndCertifierAddress(requestDTO.getTokenId(), requestDTO.getCertifierAddress());
+//        assetCertificationRequest.setReason(requestDTO.getReason());
+//        assetCertificationRequest.setCertificationTime(requestDTO.getTimestamp().toLocalDateTime());
+//        assetCertificationRequest.setStatus(AssetCertificationRequest.RequestStatus.APPROVED);
+//        requestRepository.save(assetCertificationRequest);
+//        CertificationSignature certificationSignature = new CertificationSignature();
+//        certificationSignature.setRequestId(assetCertificationRequest.getId());
+//        certificationSignature.setCertifierAddress(requestDTO.getCertifierAddress());
+//        certificationSignature.setMessageToSign(requestDTO.getMessageToSign());
+//        certificationSignature.setMessageHash(requestDTO.getMessageHash());
+//        certificationSignature.setReasonHash(requestDTO.getReasonHash());
+//        certificationSignature.setSignature(requestDTO.getSignature());
+//        certificationSignature.setComment(requestDTO.getReason());
+//        certificationSignature.setTimeStamp(requestDTO.getTimestamp());
+//        certificationSignatureRepository.save(certificationSignature);
+//    }
 
     @Override
     @Transactional(readOnly = true)
@@ -238,6 +243,16 @@ public class CertificationServiceImpl implements CertificationService {
         requestRepository.saveAll(assetCertificationRequestList);
         CertificationRecord certificationRecord = new CertificationRecord(updateDatabaseDTO);
         recordRepository.save(certificationRecord);
+        return null;
+    }
+
+    @Override
+    public Void updateCertification(CertificationActionDTO updateDatabaseDTO) {
+        AssetCertificationRequest request = requestRepository
+                .findByTokenIdAndCertifierAddress(updateDatabaseDTO.getTokenId(), updateDatabaseDTO.getCertifierAddress());
+        request.setStatus(AssetCertificationRequest.RequestStatus.APPROVED);
+        request.setUpdatedAt(LocalDateTime.now());
+        requestRepository.save(request);
         return null;
     }
 
