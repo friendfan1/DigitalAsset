@@ -60,6 +60,25 @@ export declare namespace DigitalAsset {
     timestamp: bigint,
     comment: string
   ] & { certifier: string; timestamp: bigint; comment: string };
+
+  export type CertificationWithTokenIdStruct = {
+    tokenId: BigNumberish;
+    certifier: AddressLike;
+    timestamp: BigNumberish;
+    comment: string;
+  };
+
+  export type CertificationWithTokenIdStructOutput = [
+    tokenId: bigint,
+    certifier: string,
+    timestamp: bigint,
+    comment: string
+  ] & {
+    tokenId: bigint;
+    certifier: string;
+    timestamp: bigint;
+    comment: string;
+  };
 }
 
 export interface DigitalAssetInterface extends Interface {
@@ -91,6 +110,7 @@ export interface DigitalAssetInterface extends Interface {
       | "getCertifications"
       | "getPendingCertifiers"
       | "hasCertified"
+      | "getCertificationsByAddress"
   ): FunctionFragment;
 
   getEvent(
@@ -196,6 +216,10 @@ export interface DigitalAssetInterface extends Interface {
     functionFragment: "hasCertified",
     values: [BigNumberish, AddressLike]
   ): string;
+  encodeFunctionData(
+    functionFragment: "getCertificationsByAddress",
+    values: [AddressLike]
+  ): string;
 
   decodeFunctionResult(functionFragment: "approve", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "balanceOf", data: BytesLike): Result;
@@ -269,6 +293,10 @@ export interface DigitalAssetInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "hasCertified",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getCertificationsByAddress",
     data: BytesLike
   ): Result;
 }
@@ -655,6 +683,12 @@ export interface DigitalAsset extends BaseContract {
     "view"
   >;
 
+  getCertificationsByAddress: TypedContractMethod<
+    [certifier: AddressLike],
+    [DigitalAsset.CertificationWithTokenIdStructOutput[]],
+    "view"
+  >;
+
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
   ): T;
@@ -820,6 +854,13 @@ export interface DigitalAsset extends BaseContract {
   ): TypedContractMethod<
     [tokenId: BigNumberish, certifier: AddressLike],
     [boolean],
+    "view"
+  >;
+  getFunction(
+    nameOrSignature: "getCertificationsByAddress"
+  ): TypedContractMethod<
+    [certifier: AddressLike],
+    [DigitalAsset.CertificationWithTokenIdStructOutput[]],
     "view"
   >;
 

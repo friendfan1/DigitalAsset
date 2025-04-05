@@ -595,7 +595,7 @@ const loadCompanies = async () => {
         Authorization: `Bearer ${token}`
       }
     });
-
+    console.log('获取企业列表:', response.data);
     if (response.data.success) {
       companies.value = response.data.data;
     } else {
@@ -625,7 +625,16 @@ const handleGrantCompanyRole = async () => {
       try {
         grantingCompanyRole.value = true;
         
-        const company = companies.value.find(c => c.id.toString() === companyGrantForm.companyId);
+        // 添加调试日志
+        console.log('当前选择的企业ID:', companyGrantForm.companyId);
+        console.log('当前选择的企业ID类型:', typeof companyGrantForm.companyId);
+        console.log('所有企业列表:', companies.value);
+        
+        const company = companies.value.find(c => {
+          console.log('比较:', c.id, companyGrantForm.companyId, typeof c.id);
+          return c.id === companyGrantForm.companyId;
+        });
+        
         if (!company) {
           throw new Error('未找到选中的企业');
         }

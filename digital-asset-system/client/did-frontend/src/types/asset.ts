@@ -17,13 +17,10 @@ export interface FileResource {
 
 export interface CertificationStatus {
   certifierAddress: string
-  status: 'PENDING' | 'APPROVED'
-  certifierName?: string
+  hasCertified: boolean
+  isCurrentUser: boolean
   timestamp?: number
-  reason?: string
-  isCurrentUser?: boolean
-  filePaths?: string[]
-  fileResources: FileResource[]
+  comment?: string
 }
 
 export interface CertificationFile {
@@ -49,6 +46,9 @@ export interface CertificationRequestDTO {
   certificationTime?: number | null;
   chainComment?: string;
   cid?: string;
+  version?: string;
+  pendingCertifiers?: string[];
+  certificationStatus?: CertificationStatus[];
 }
 
 export interface Asset {

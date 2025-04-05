@@ -93,16 +93,13 @@ public class CompanyVerificationServiceImpl implements CompanyVerificationServic
 
     @Override
     public List<CompanyWithWallet> getCompaniesWithWallet() {
-        List<CompanyVerification> verifiedCompanies = repository.findByApprovedTrue();
+        List<User> verifiedCompanies = userRepository.findByVerificationStatusAndWeb3AddressIsNotNull(VerificationStatus.VERIFIED);
         return verifiedCompanies.stream()
             .map(verification -> {
                 CompanyWithWallet companyWithWallet = new CompanyWithWallet();
-                companyWithWallet.setId(verification.getId().toString());
-                companyWithWallet.setCompanyName(verification.getCompanyName());
-                
-                User user = userRepository.findById(verification.getUserId())
-                    .orElseThrow(() -> new RuntimeException("用户未找到"));
-                companyWithWallet.setWalletAddress(user.getWeb3address());
+                companyWithWallet.setId(verification.getUserId());
+                companyWithWallet.setCompanyName(verification.getUsername());
+                companyWithWallet.setWalletAddress(verification.getWeb3address());
                 
                 return companyWithWallet;
             })

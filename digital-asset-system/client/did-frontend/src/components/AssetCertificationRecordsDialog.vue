@@ -39,57 +39,129 @@
     <!-- 认证记录表格 -->
     <el-table
       v-loading="loadingCertRecords"
-      :data="filteredCertRecords"
+      :data="groupedAssetRecords"
       stripe
       style="width: 100%"
       @sort-change="handleCertSort"
     >
-      <el-table-column label="资产ID" prop="tokenId" width="100" sortable>
-        <template #default="{ row }">
+      <el-table-column type="expand" width="50">
+        <template #default="{ row: assetRecord }">
+          <div class="certification-details">
+            <div class="certification-status-summary">
+              <div class="status-header">认证状态概览</div>
+              <el-row :gutter="20">
+                <el-col :span="8">
+                  <div class="status-item">
+                    <div class="status-label">已认证</div>
+                    <div class="status-value">{{ getCertifiedCount(assetRecord.allCertifierStatuses) }}</div>
+                  </div>
+                </el-col>
+                <el-col :span="8">
+                  <div class="status-item">
+                    <div class="status-label">待认证</div>
+                    <div class="status-value">{{ getPendingCount(assetRecord.allCertifierStatuses) }}</div>
+                  </div>
+                </el-col>
+                <el-col :span="8">
+                  <div class="status-item">
+                    <div class="status-label">总认证人数</div>
+                    <div class="status-value">{{ assetRecord.allCertifierStatuses.length }}</div>
+                  </div>
+                </el-col>
+              </el-row>
+            </div>
+
+            <el-table
+              :data="assetRecord.allCertifierStatuses"
+              border
+              size="small"
+              style="width: 100%; margin-top: 20px;"
+            >
+              <el-table-column label="认证者" min-width="220">
+                <template #default="{ row: certifier }">
+                  <div class="certifier-info-row">
+                    <el-tooltip :content="certifier.certifierAddress" placement="top">
+                      <span class="certifier-address">{{ formatAddress(certifier.certifierAddress) }}</span>
+                    </el-tooltip>
+                    <el-tag 
+                      v-if="certifier.isCurrentUser" 
+                      size="small" 
+                      type="info" 
+                      style="margin-left: 8px;"
+                    >
+                      当前用户
+                    </el-tag>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="认证状态" width="120">
+                <template #default="{ row: certifier }">
+                  <el-tag :type="certifier.hasCertified ? 'success' : 'warning'">
+                    {{ certifier.hasCertified ? '已认证' : '待认证' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="认证时间" width="180">
+                <template #default="{ row: certifier }">
+                  {{ certifier.timestamp ? formatDate(certifier.timestamp) : '-' }}
+                </template>
+              </el-table-column>
+
+              <el-table-column label="认证评论" min-width="200">
+                <template #default="{ row: certifier }">
+                  <el-tooltip 
+                    v-if="certifier.comment" 
+                    :content="certifier.comment" 
+                    placement="top"
+                  >
+                    <span class="comment-text">{{ truncateComment(certifier.comment) }}</span>
+                  </el-tooltip>
+                  <span v-else>-</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="资产ID" prop="tokenId" width="120" sortable>
+        <template #default="{ row: assetRecord }">
           <el-tooltip :content="'查看资产详情'" placement="top">
-            <span class="link-text" @click="viewAssetById(row.tokenId)">{{ row.tokenId }}</span>
+            <span class="link-text" @click="viewAssetById(assetRecord.tokenId)">{{ assetRecord.tokenId }}</span>
           </el-tooltip>
         </template>
       </el-table-column>
-      
-      <el-table-column label="认证者" min-width="220">
-        <template #default="{ row }">
-          <div class="certifier-info-row">
-            <el-tooltip :content="row.certifierAddress" placement="top">
-              <span class="certifier-address">{{ formatAddress(row.certifierAddress) }}</span>
-            </el-tooltip>
+
+      <el-table-column label="认证进度" min-width="280">
+        <template #default="{ row: assetRecord }">
+          <div class="cert-progress">
+            <el-progress 
+              :percentage="calculateCertProgress(assetRecord.allCertifierStatuses)"
+              :format="() => `${getCertifiedCount(assetRecord.allCertifierStatuses)}/${assetRecord.allCertifierStatuses.length}`"
+              :status="getCertProgressStatus(assetRecord.allCertifierStatuses)"
+              :stroke-width="18"
+            />
           </div>
         </template>
       </el-table-column>
-      
-      <el-table-column label="认证时间" width="180" sortable>
-        <template #default="{ row }">
-          {{ formatDate(row.certificationTime) }}
+
+      <el-table-column label="最近更新" width="180" sortable>
+        <template #default="{ row: assetRecord }">
+          {{ formatDate(getLatestCertificationTime(assetRecord.allCertifierStatuses)) }}
         </template>
       </el-table-column>
-      
-      <el-table-column label="交易哈希" min-width="220">
-        <template #default="{ row }">
-          <div v-if="row.transactionHash">
-            <el-tooltip :content="row.transactionHash" placement="top">
-              <span class="txhash-text" @click="openExplorer(row.transactionHash)">
-                {{ formatAddress(row.transactionHash) }}
-              </span>
-            </el-tooltip>
-          </div>
-          <span v-else>-</span>
-        </template>
-      </el-table-column>
-      
-      <el-table-column label="操作" width="150">
-        <template #default="{ row }">
-          <el-button size="small" @click="viewAssetById(row.tokenId)">查看详情</el-button>
+
+      <el-table-column label="操作" width="120" align="center">
+        <template #default="{ row: assetRecord }">
+          <el-button size="small" type="primary" @click="viewAssetById(assetRecord.tokenId)">查看详情</el-button>
         </template>
       </el-table-column>
     </el-table>
     
     <!-- 无数据状态 -->
-    <div v-if="filteredCertRecords.length === 0 && !loadingCertRecords" class="empty-state">
+    <div v-if="groupedAssetRecords.length === 0 && !loadingCertRecords" class="empty-state">
       <el-empty description="暂无认证记录" />
     </div>
     
@@ -123,7 +195,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getDigitalAssetService } from '@/utils/web3/DigitalAssetService'
 import { useUserStore } from '@/stores/user'
@@ -137,8 +209,22 @@ interface CertificationRecord {
   tokenId: string | number;
   certifierAddress: string;
   certificationTime: string | Date;
-  transactionHash?: string;
-  [key: string]: any;
+  comment?: string;
+  cid: string;
+  contentHash?: string;
+  registrationDate: number | bigint;
+  version: number | bigint;
+  isCertified: boolean;
+  certificationStatus: CertifierStatus[];
+}
+
+// 定义认证者状态接口
+interface CertifierStatus {
+  certifierAddress: string;
+  hasCertified: boolean;
+  isCurrentUser: boolean;
+  timestamp: number | null;
+  comment: string | null;
 }
 
 // 定义资产接口
@@ -157,6 +243,17 @@ interface Asset {
   [key: string]: any;
 }
 
+// 定义分组后的资产记录接口
+interface GroupedAssetRecord {
+  tokenId: string | number;
+  cid: string;
+  registrationDate: number | bigint;
+  version: number | bigint;
+  isCertified: boolean;
+  certificationRecords: CertificationRecord[];
+  allCertifierStatuses: CertifierStatus[];
+}
+
 const props = defineProps({
   visible: {
     type: Boolean,
@@ -165,6 +262,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:visible', 'close', 'view-asset'])
+
+// 添加组件卸载标记
+const isComponentMounted = ref(true)
 
 const userStore = useUserStore()
 const walletStore = useWalletStore()
@@ -197,11 +297,100 @@ const filteredCertRecords = computed(() => {
   )
 })
 
+// 对认证记录按资产ID分组的计算属性
+const groupedAssetRecords = computed<GroupedAssetRecord[]>(() => {
+  const groupedMap = new Map<string | number, CertificationRecord[]>();
+  
+  // 按资产ID分组
+  certificationRecords.value.forEach(record => {
+    if (!groupedMap.has(record.tokenId)) {
+      groupedMap.set(record.tokenId, []);
+    }
+    groupedMap.get(record.tokenId)?.push(record);
+  });
+  
+  // 转换为最终的分组记录
+  return Array.from(groupedMap.entries()).map(([tokenId, records]) => {
+    // 使用第一条记录的基本信息
+    const firstRecord = records[0];
+    
+    // 合并所有认证者状态
+    const allStatuses = new Map<string, CertifierStatus>();
+    records.forEach(record => {
+      record.certificationStatus.forEach(status => {
+        allStatuses.set(status.certifierAddress, status);
+      });
+    });
+    
+    return {
+      tokenId,
+      cid: firstRecord.cid,
+      registrationDate: firstRecord.registrationDate,
+      version: firstRecord.version,
+      isCertified: firstRecord.isCertified,
+      certificationRecords: records,
+      allCertifierStatuses: Array.from(allStatuses.values())
+    };
+  });
+});
+
+// 获取已认证数量
+const getCertifiedCount = (statuses?: CertifierStatus[]): number => {
+  if (!statuses?.length) return 0;
+  return statuses.filter(status => status.hasCertified).length;
+};
+
+// 获取待认证数量
+const getPendingCount = (statuses?: CertifierStatus[]): number => {
+  if (!statuses?.length) return 0;
+  return statuses.filter(status => !status.hasCertified).length;
+};
+
+// 计算认证进度百分比
+const calculateCertProgress = (statuses?: CertifierStatus[]): number => {
+  if (!statuses?.length) return 0;
+  return Math.round((getCertifiedCount(statuses) / statuses.length) * 100);
+};
+
+// 获取认证进度状态
+const getCertProgressStatus = (statuses?: CertifierStatus[]): 'success' | 'warning' | 'exception' => {
+  if (!statuses?.length) return 'exception';
+  const progress = calculateCertProgress(statuses);
+  if (progress === 100) return 'success';
+  if (progress > 0) return 'warning';
+  return 'exception';
+};
+
+// 获取最新认证时间
+const getLatestCertificationTime = (statuses?: CertifierStatus[]): Date => {
+  if (!statuses?.length) return new Date();
+  const timestamps = statuses
+    .filter(status => status.timestamp)
+    .map(status => status.timestamp as number);
+  
+  if (!timestamps.length) return new Date();
+  return new Date(Math.max(...timestamps));
+};
+
+// 截断评论文本
+const truncateComment = (comment: string, maxLength: number = 50): string => {
+  if (!comment) return ''
+  return comment.length > maxLength 
+    ? `${comment.slice(0, maxLength)}...` 
+    : comment
+}
+
 // 格式化日期
-const formatDate = (date: string | Date): string => {
-  if (!date) return '未知'
-  // 如果传入的是字符串，先转换为Date对象
-  const dateObj = typeof date === 'string' ? new Date(date) : date
+const formatDate = (date: string | Date | number | null): string => {
+  if (!date) return '-';
+  
+  // 如果是时间戳（毫秒），转换为Date对象
+  const dateObj = typeof date === 'number' 
+    ? new Date(date)
+    : typeof date === 'string' 
+      ? new Date(date) 
+      : date;
+
   return dateObj.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -210,8 +399,8 @@ const formatDate = (date: string | Date): string => {
     minute: '2-digit',
     second: '2-digit',
     hour12: false
-  })
-}
+  });
+};
 
 // 格式化地址
 const formatAddress = (address: string): string => {
@@ -221,73 +410,59 @@ const formatAddress = (address: string): string => {
 
 // 获取认证记录
 const fetchCertificationRecords = async () => {
+  if (!isComponentMounted.value) return
   console.log('开始获取认证记录...')
   loadingCertRecords.value = true
   try {
-    const token = userStore.profile?.token || ''
-    console.log('当前用户token:', token ? '已获取' : '未获取')
+    const service = await getDigitalAssetService()
+    const certifications = await service.getCertificationsByAddress(userStore.profile?.walletAddress || '')
     
-    const params = new URLSearchParams()
-    params.append('page', certCurrentPage.value.toString())
-    params.append('pageSize', certPageSize.value.toString())
-    
+    // 检查组件是否已卸载
+    if (!isComponentMounted.value) return
+
+    // 转换数据格式
+    const records = certifications.map(cert => ({
+      tokenId: cert.tokenId,
+      certifierAddress: cert.certifierAddress,
+      certificationTime: new Date(cert.certificationTime),
+      comment: cert.comment,
+      cid: cert.cid,
+      version: cert.version,
+      isCertified: cert.isCertified,
+      registrationDate: cert.registrationDate,
+      certificationStatus: cert.certificationStatus
+    }))
+
+    // 根据日期范围过滤
+    let filteredRecords = records
     if (certDateRange.value && certDateRange.value[0] && certDateRange.value[1]) {
-      params.append('startDate', certDateRange.value[0])
-      params.append('endDate', certDateRange.value[1])
+      const startDate = new Date(certDateRange.value[0]).getTime()
+      const endDate = new Date(certDateRange.value[1]).getTime()
+      filteredRecords = records.filter(record => {
+        const recordTime = record.certificationTime.getTime()
+        return recordTime >= startDate && recordTime <= endDate
+      })
     }
 
-    console.log('请求地址:', `/api/certification/records?${params.toString()}`)
+    // 处理分页
+    const startIndex = (certCurrentPage.value - 1) * certPageSize.value
+    const endIndex = startIndex + certPageSize.value
     
-    try {
-      const response = await axios.get(`/api/certification/records?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      
-      console.log('API响应数据:', response.data)
-      
-      // 适配返回格式: { "content": [...], "total": n }
-      if (response.data) {
-        certificationRecords.value = response.data.content || []
-        totalCertRecords.value = response.data.total || 0
-        console.log('获取到认证记录数量:', certificationRecords.value.length)
-      } else {
-        throw new Error('获取认证记录失败: 返回数据格式错误')
-      }
-    } catch (apiError) {
-      console.error('API请求失败，使用模拟数据:', apiError)
-      // 如果API调用失败，使用模拟数据
-      const mockData = [
-        {
-          tokenId: "1001",
-          certifierAddress: "0x1234567890abcdef1234567890abcdef12345678",
-          certificationTime: new Date(),
-          transactionHash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
-        },
-        {
-          tokenId: "1002",
-          certifierAddress: "0x2345678901abcdef2345678901abcdef23456789",
-          certificationTime: new Date(Date.now() - 86400000), // 昨天
-          transactionHash: "0xbcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890a"
-        },
-        {
-          tokenId: "1003",
-          certifierAddress: "0x3456789012abcdef3456789012abcdef34567890",
-          certificationTime: new Date(Date.now() - 172800000), // 前天
-          transactionHash: "0xcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-        }
-      ];
-      
-      certificationRecords.value = mockData;
-      totalCertRecords.value = mockData.length;
-      console.log('使用模拟数据，数量:', certificationRecords.value.length)
-    }
+    // 再次检查组件是否已卸载
+    if (!isComponentMounted.value) return
+    
+    certificationRecords.value = filteredRecords.slice(startIndex, endIndex)
+    totalCertRecords.value = filteredRecords.length
   } catch (error: any) {
+    if (!isComponentMounted.value) return
     console.error('获取认证记录失败:', error)
     ElMessage.error('获取认证记录失败: ' + (error.message || '未知错误'))
     certificationRecords.value = []
     totalCertRecords.value = 0
   } finally {
-    loadingCertRecords.value = false
+    if (isComponentMounted.value) {
+      loadingCertRecords.value = false
+    }
   }
 }
 
@@ -315,51 +490,20 @@ const handleCertPageChange = (page: number) => {
   fetchCertificationRecords()
 }
 
-// 在区块链浏览器中打开交易详情
-const openExplorer = (txHash: string) => {
-  if (!txHash) return
-  
-  // 获取当前网络信息
-  const networkId = walletStore.chainId?.toString() || '1' // 默认以太坊主网
-  
-  // 根据网络ID选择合适的区块链浏览器
-  let explorerUrl = ''
-  
-  if (networkId === '1') {
-    // 以太坊主网
-    explorerUrl = `https://etherscan.io/tx/${txHash}`
-  } else if (networkId === '5') {
-    // Goerli测试网
-    explorerUrl = `https://goerli.etherscan.io/tx/${txHash}`
-  } else if (networkId === '11155111') {
-    // Sepolia测试网
-    explorerUrl = `https://sepolia.etherscan.io/tx/${txHash}`
-  } else if (networkId === '137') {
-    // Polygon主网
-    explorerUrl = `https://polygonscan.com/tx/${txHash}`
-  } else if (networkId === '80001') {
-    // Polygon Mumbai测试网
-    explorerUrl = `https://mumbai.polygonscan.com/tx/${txHash}`
-  } else {
-    // 其他网络或自定义网络
-    explorerUrl = `https://etherscan.io/tx/${txHash}` // 默认使用以太坊主网
-  }
-  
-  window.open(explorerUrl, '_blank')
-}
 
 // 查看资产详情
 const viewAssetById = async (tokenId: string | number) => {
+  if (!isComponentMounted.value) return
   try {
-    // 获取资产详情
     const asset = await getAssetByTokenId(tokenId)
+    if (!isComponentMounted.value) return
     if (asset) {
-      // 直接调用详情查看方法
       viewAssetDetails(asset)
     } else {
       ElMessage.warning(`未找到资产ID为 ${tokenId} 的资产`)
     }
   } catch (error) {
+    if (!isComponentMounted.value) return
     console.error('查看资产详情失败:', error)
     ElMessage.error('查看资产详情失败')
   }
@@ -438,41 +582,90 @@ const handleDetailClose = () => {
 // 生成资产预览URL
 const generatePreviewUrl = async (asset: Asset) => {
   try {
-    isLoadingPreview.value = true
+    isLoadingPreview.value = true;
     
     // 检查文件类型是否可以预览
     if (!asset.metadata || !asset.metadata.fileType) {
-      assetPreviewUrl.value = ''
-      isLoadingPreview.value = false
-      return
+      assetPreviewUrl.value = '';
+      isLoadingPreview.value = false;
+      return;
     }
     
-    const fileType = asset.metadata.fileType
-    const isPreviewable = isFilePreviewable(fileType)
+    const fileType = asset.metadata.fileType;
+    const isPreviewable = isFilePreviewable(fileType);
     
     if (!isPreviewable) {
-      assetPreviewUrl.value = ''
-      isLoadingPreview.value = false
-      return
+      assetPreviewUrl.value = '';
+      isLoadingPreview.value = false;
+      return;
     }
     
-    // 简单实现：直接从IPFS获取预览
-    const ipfsGateway = 'https://gateway.ipfs.io/ipfs/'
-    assetPreviewUrl.value = `${ipfsGateway}${asset.cid}/content`
+    // 导入所需服务
+    const { getIPFSUrl } = await import('@/utils/ipfs');
+    const { ipfsConfig } = await import('@/config/ipfs.config');
+    const { getChunkedFileService } = await import('@/services/ChunkedFileService');
     
-    // 对视频和音频添加时间戳参数避免缓存问题
-    if (fileType.startsWith('video/') || fileType.startsWith('audio/')) {
-      assetPreviewUrl.value += `?t=${Date.now()}`
+    // 获取IPFS网关
+    const ipfsGateway = window.ipfsGateway || ipfsConfig.gateway;
+    const chunkedService = getChunkedFileService(ipfsGateway);
+    
+    // 检查是否是分片文件
+    const isChunked = await chunkedService.isChunkedFile(asset.cid);
+    
+    if (isChunked) {
+      // 检测到分片文件
+      console.log('检测到分片文件:', asset.cid);
+      
+      // 获取元数据
+      const metadata = await chunkedService.getMetadata(asset.cid);
+      console.log('分片文件元数据:', metadata);
+      
+      // 获取预览模式
+      const previewMode = chunkedService.getPreviewMode(fileType);
+      
+      // 根据预览模式处理
+      if (previewMode === 'stream') {
+        // 视频和音频文件使用流服务
+        assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+        console.log('分片媒体流URL:', assetPreviewUrl.value);
+        ElMessage.info('正在加载媒体流，请稍候...');
+      } else if (previewMode === 'image') {
+        // 图片和PDF，尝试使用流服务直接显示
+        if (fileType.startsWith('image/')) {
+          // 对于图片，先尝试iframe方式查看
+          assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+          console.log('分片图片流URL:', assetPreviewUrl.value);
+          ElMessage.info('正在加载图片...');
+        } else if (fileType === 'application/pdf') {
+          // PDF文件使用流服务
+          assetPreviewUrl.value = chunkedService.getStreamUrl(asset.cid, fileType);
+          console.log('分片PDF流URL:', assetPreviewUrl.value);
+          ElMessage.info('正在加载PDF...');
+        }
+      } else {
+        // 其他类型文件
+        ElMessage.info('该文件过大，已进行分片存储，请下载后查看');
+        assetPreviewUrl.value = '';
+      }
+    } else {
+      // 不是分片文件，使用标准路径
+      assetPreviewUrl.value = `${ipfsGateway}${asset.cid}/content`;
+      
+      // 对视频和音频添加时间戳参数避免缓存问题
+      if (fileType.startsWith('video/') || fileType.startsWith('audio/')) {
+        assetPreviewUrl.value += `?t=${Date.now()}`;
+      }
+      
+      console.log('标准预览URL:', assetPreviewUrl.value);
     }
-    
   } catch (error) {
-    console.error('获取预览失败:', error)
-    assetPreviewUrl.value = ''
-    ElMessage.error('预览生成失败')
+    console.error('获取预览失败:', error);
+    assetPreviewUrl.value = '';
+    ElMessage.error('预览生成失败: ' + (error instanceof Error ? error.message : String(error)));
   } finally {
-    isLoadingPreview.value = false
+    isLoadingPreview.value = false;
   }
-}
+};
 
 // 判断文件类型是否可预览
 const isFilePreviewable = (fileType: string): boolean => {
@@ -527,10 +720,14 @@ const downloadAsset = async (asset: Asset) => {
   }
 }
 
-// 组件挂载时初始化
+// 组件挂载和卸载
 onMounted(() => {
-  console.log('AssetCertificationRecordsDialog组件已挂载')
+  isComponentMounted.value = true
   fetchCertificationRecords()
+})
+
+onBeforeUnmount(() => {
+  isComponentMounted.value = false
 })
 </script>
 
@@ -605,12 +802,15 @@ onMounted(() => {
   color: #64ffda;
   cursor: pointer;
   font-weight: 500;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-}
-
-.link-text:hover {
-  text-decoration: underline;
+  font-family: monospace;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    background: rgba(100, 255, 218, 0.1);
+    text-decoration: none;
+  }
 }
 
 .txhash-text {
@@ -631,6 +831,99 @@ onMounted(() => {
 .certifier-address {
   font-family: monospace;
   font-weight: 500;
+}
+
+.certification-details {
+  padding: 20px;
+  background: rgba(10, 25, 47, 0.3);
+  border-radius: 8px;
+  
+  .el-table {
+    background: transparent;
+    
+    &::before {
+      display: none;
+    }
+    
+    th {
+      background: rgba(100, 255, 218, 0.1);
+      border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+    }
+    
+    td {
+      border-bottom: 1px solid rgba(100, 255, 218, 0.1);
+    }
+  }
+}
+
+.certification-status-summary {
+  margin-bottom: 20px;
+  padding: 20px;
+  background: rgba(100, 255, 218, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(100, 255, 218, 0.1);
+
+  .status-header {
+    font-size: 16px;
+    font-weight: 600;
+    color: #64ffda;
+    margin-bottom: 16px;
+  }
+
+  .status-item {
+    text-align: center;
+    padding: 12px;
+    background: rgba(10, 25, 47, 0.4);
+    border-radius: 6px;
+    border: 1px solid rgba(100, 255, 218, 0.1);
+
+    .status-label {
+      font-size: 14px;
+      color: #8892b0;
+      margin-bottom: 8px;
+    }
+
+    .status-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #64ffda;
+    }
+  }
+}
+
+.cert-progress {
+  padding: 8px 0;
+  
+  .el-progress {
+    margin: 0;
+    
+    :deep(.el-progress-bar__outer) {
+      background-color: rgba(100, 255, 218, 0.1);
+    }
+    
+    :deep(.el-progress-bar__inner) {
+      transition: all 0.3s ease;
+    }
+    
+    :deep(.el-progress__text) {
+      font-size: 13px;
+      font-weight: 500;
+      color: #8892b0;
+    }
+  }
+}
+
+.comment-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #8892b0;
+  
+  &:hover {
+    color: #64ffda;
+  }
 }
 
 @media (max-width: 768px) {

@@ -32,8 +32,23 @@ interface AssetMetadataViewStructOutput {
   description: string;
 }
 
+interface CertificationWithTokenId {
+  tokenId: bigint;
+  certifier: string;
+  timestamp: bigint;
+  comment: string;
+}
+
+interface Certification {
+    certifier: string;
+    timestamp: bigint;
+    comment: string;
+}
+
+
 export class DigitalAssetService extends BaseWeb3Service {
   private contract: DigitalAsset;
+  private rbac: RBACService;
   private ipfsClient: any;
   private ipfsDB: IDBPDatabase | null = null;
   private userAssetsCache = new Map<string, {
@@ -64,6 +79,8 @@ export class DigitalAssetService extends BaseWeb3Service {
       CONTRACT_ADDRESSES.DigitalAsset,
       signer
     );
+    
+    this.rbac = new RBACService(provider, signer);
     
     // 获取环境变量
     const infuraProjectId = import.meta.env.VITE_INFURA_PROJECT_ID || '';
@@ -666,36 +683,67 @@ export class DigitalAssetService extends BaseWeb3Service {
   }
 
   public async certifyAsset(tokenId: number, comment: string, token: string) {
-    await this.ensureConnection();
-    const address = await this.signer.getAddress();
-    const currentNonce = await this.contract.nonces(address);
-    
-    const signature = await this.generateTypedSignature(
-      'Certify',
-      { tokenId, comment, nonce: currentNonce }
-    );
-
-    // 调用智能合约
-    const tx = await this.contract.certifyAsset(tokenId, comment, signature);
-    const receipt = await tx.wait();
-    const result = this.parseTransactionReceipt(receipt!, 'AssetCertified');
-
-    // 调用后端接口更新认证状态
     try {
-      await axios.post('/api/certification/sign', {
+      await this.ensureConnection();
+      const address = await this.signer.getAddress();
+      const currentNonce = await this.contract.nonces(address);
+      
+      // 检查是否是认证者
+      const hasRole = await this.hasRole('CERTIFIER_ROLE', address);
+      if (!hasRole) {
+        throw new Error('当前地址没有认证者角色');
+      }
+      
+      // 检查是否在待认证列表中
+      const pendingCertifiers = await this.contract.getPendingCertifiers(tokenId);
+      if (!pendingCertifiers.includes(address)) {
+        throw new Error('当前地址不在待认证列表中');
+      }
+      
+      // 检查是否已经认证过
+      const hasCertified = await this.contract.hasCertified(tokenId, address);
+      if (hasCertified) {
+        throw new Error('已经认证过该资产');
+      }
+      
+      console.log('认证参数:', {
         tokenId,
-        certifierAddress: address,
-      }, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        comment,
+        nonce: currentNonce,
+        address
       });
-    } catch (error) {
-      console.error('更新后端认证状态失败:', error);
-      throw new Error('认证成功但更新后端状态失败，请联系管理员');
-    }
+      
+      const signature = await this.generateTypedSignature(
+        'Certify',
+        { tokenId, comment, nonce: currentNonce }
+      );
+      
+      console.log('生成的签名:', signature);
+      
+      const tx = await this.contract.certifyAsset(tokenId, comment, signature);
+      const receipt = await tx.wait();
+      const result = this.parseTransactionReceipt(receipt!, 'AssetCertified');
 
-    return result;
+      // 调用后端接口更新认证状态
+      try {
+        await this.axios.post('/api/certification/sign', {
+          tokenId,
+          certifierAddress: address,
+        }, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+      } catch (error) {
+        console.error('更新后端认证状态失败:', error);
+        throw new Error('认证成功但更新后端状态失败，请联系管理员');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('认证失败:', error);
+      throw error;
+    }
   }
 
   public async updateMetadata(tokenId: number, file: File) {
@@ -957,17 +1005,23 @@ export class DigitalAssetService extends BaseWeb3Service {
   public async getCertificationStatus(tokenId: number) {
     await this.ensureConnection();
     const pendingCertifiers = await this.getPendingCertifiers(tokenId);
+    const certifications = await this.contract.getCertifications(tokenId);
+    
     const certificationStatus = await Promise.all(
-      pendingCertifiers.map(async (certifier) => ({
-        certifier,
-        hasCertified: await this.hasCertified(tokenId, certifier)
-      }))
+      pendingCertifiers.map(async (certifier) => {
+        // 找到该认证人的认证记录
+        const certification = certifications.find(c => c.certifier === certifier);
+        
+        return {
+          certifierAddress: certifier,
+          hasCertified: await this.hasCertified(tokenId, certifier),
+          isCurrentUser: await this.signer.getAddress() === certifier,
+          timestamp: certification ? Number(certification.timestamp) * 1000 : null,
+          comment: certification ? certification.comment : null
+        };
+      })
     );
-    return {
-      pendingCertifiers,
-      certificationStatus,
-      isFullyCertified: certificationStatus.every(status => status.hasCertified)
-    };
+    return certificationStatus;
   }
 
   public createUploadId(): string {
@@ -1250,11 +1304,20 @@ export class DigitalAssetService extends BaseWeb3Service {
   public async getCertifications(tokenId: number) {
     await this.ensureConnection();
     const certifications = await this.contract.getCertifications(tokenId);
-    return certifications.map(cert => ({
-      certifier: cert.certifier,
-      timestamp: Number(cert.timestamp) * 1000, // 转换为毫秒
-      comment: cert.comment
-    }));
+    console.log('原始认证数据:', certifications);
+    
+    if (!Array.isArray(certifications)) {
+        throw new Error('返回的认证数据格式不正确');
+    }
+    
+    return certifications.map(cert => {
+        console.log('单条认证数据:', cert);
+        return {
+            certifier: cert.certifier,
+            timestamp: Number(cert.timestamp) * 1000,
+            comment: cert.comment
+        };
+    });
   }
 
   public async getAssetCertificationDetails(tokenId: number) {
@@ -1350,20 +1413,15 @@ export class DigitalAssetService extends BaseWeb3Service {
       const pendingRequests = await Promise.all(
         response.data.data.map(async (request: any) => {
           try {
-            // 获取资产基本信息（从IPFS）
+            // 获取资产基本信息（从合约和IPFS）
             const metadata = await this.getAssetMetadata(request.tokenId);
             console.log('metadata:', metadata);
-            // 获取链上认证记录
-            const certifications = await this.getCertifications(request.tokenId);
 
-          
-            // 获取链上认证状态
             const hasCertified = await this.hasCertified(request.tokenId, certifierAddress);
-            
-            // 合并信息
-            const matchedCertification = certifications.find(c => 
-              c.certifier.toLowerCase() === certifierAddress.toLowerCase()
-            );
+            console.log('hasCertified:', hasCertified);
+
+            const certificationStatus = await this.getCertificationStatus(request.tokenId);
+            console.log('certificationStatus:', certificationStatus);
 
             return {
               ...request,
@@ -1372,19 +1430,17 @@ export class DigitalAssetService extends BaseWeb3Service {
               version: metadata[3] || 1,
               isCertified: metadata[4] || false,
               registrationDate: new Date(Number(metadata[2]) * 1000),
+              pendingCertifiers: metadata[5] || [],
               fileName: metadata.fileName || '',
               fileType: metadata.fileType || '',
               fileSize: metadata.fileSize || 0,
               category: metadata.category || '',
               description: metadata.description || '',
-              // 合并链上信息
-              chainStatus: hasCertified ? 'APPROVED' : 'PENDING',
-              certificationTime: matchedCertification?.timestamp || null,
-              chainComment: matchedCertification?.comment || '',
               // 保持原有信息
               status: request.status,
               reason: request.reason || '',
-              filePaths: request.filePaths || []
+              filePaths: request.filePaths || [],
+              certificationStatus: certificationStatus,
             };
           } catch (error) {
             console.error(`获取资产 ${request.tokenId} 的详细信息失败:`, error);
@@ -1403,6 +1459,38 @@ export class DigitalAssetService extends BaseWeb3Service {
       console.error('获取待认证请求失败:', error);
       throw error;
     }
+  }
+
+  public async hasRole(role: string, address: string): Promise<boolean> {
+    await this.ensureConnection();
+    return await this.rbac.hasRole(role, address);
+  }
+
+  public async getCertificationsByAddress(address: string) {
+    await this.ensureConnection();
+    const certifications: CertificationWithTokenId[] = await this.contract.getCertificationsByAddress(address);
+    
+    const enhancedCertifications = await Promise.all(
+      certifications.map(async (cert) => {
+        const details = await this.getAssetMetadata(Number(cert.tokenId));
+        const certificationStatus = await this.getCertificationStatus(Number(cert.tokenId));
+        console.log('certificationStatus:', certificationStatus);
+        return {
+          tokenId: Number(cert.tokenId),
+          certifierAddress: cert.certifier,
+          certificationTime: Number(cert.timestamp) * 1000,
+          comment: cert.comment,
+          cid: details[0],
+          contentHash: details[1],
+          registrationDate: details[2],
+          version: details[3],
+          isCertified: details[4],
+          pendingCertifiers: details[5],
+          certificationStatus: certificationStatus
+        }
+      }
+    ))
+    return enhancedCertifications;
   }
 }
 

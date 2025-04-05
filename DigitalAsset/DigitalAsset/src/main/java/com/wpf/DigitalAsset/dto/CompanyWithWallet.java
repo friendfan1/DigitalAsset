@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Data
 public class CompanyWithWallet {
-    private String id;
+    private Integer id;
     private String companyName;
     private String walletAddress;
 } 

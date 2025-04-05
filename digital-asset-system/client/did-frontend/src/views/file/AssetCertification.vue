@@ -231,10 +231,9 @@
           <h3>认证状态</h3>
           <el-timeline>
             <el-timeline-item
-              v-for="status in certificationStatus"
+              v-for="status in selectedAssetForCert?.certificationStatus"
               :key="status.certifierAddress"
-              :type="status.status === 'APPROVED' ? 'success' : 'warning'"
-              :timestamp="status.timestamp ? formatDate(status.timestamp) : ''"
+              :type="status.hasCertified === true ? 'success' : 'warning'"
             >
               <div class="status-item" :class="{ 'current-user': status.isCurrentUser }">
                 <div class="certifier">
@@ -242,10 +241,10 @@
                   <el-tag v-if="status.isCurrentUser" size="small" type="info">当前认证者</el-tag>
                 </div>
                 <div class="status">
-                  状态：{{ status.status === 'APPROVED' ? '已认证' : '待认证' }}
+                  状态：{{ status.hasCertified === true ? '已认证' : '待认证' }}
                 </div>
-                <div v-if="status.reason" class="reason">
-                  认证理由：{{ status.reason }}
+                <div v-if="status.comment" class="reason">
+                  认证意见：{{ status.comment }}
                 </div>
               </div>
             </el-timeline-item>
@@ -413,20 +412,28 @@ const iframeLoadFailed = ref(false)
 
 // 计算属性
 const filteredAssets = computed(() => {
-  let filtered = assetList.value
-
+  console.log('原始资产列表:', assetList.value);
+  let filtered = assetList.value;
+  
   if (searchQuery.value) {
+    console.log('搜索关键词:', searchQuery.value);
     const query = searchQuery.value.toLowerCase()
-    filtered = filtered.filter(asset => 
-      asset.tokenId.toString().includes(query) ||
-      asset.metadata.fileName.toLowerCase().includes(query)
-    )
+    filtered = filtered.filter(asset => {
+      // 确保安全的类型转换
+      const tokenIdStr = String(asset.tokenId || '')
+      const fileName = (asset.metadata.fileName || '').toLowerCase()
+      
+      return tokenIdStr.includes(query) || fileName.includes(query)
+    })
+    console.log('搜索后的结果:', filtered);
   }
 
   if (filterStatus.value !== 'all') {
-    filtered = filtered.filter(asset => 
-      filterStatus.value === 'certified' ? asset.isCertified : !asset.isCertified
-    )
+    filtered = filtered.filter(asset => {
+      // 使用实际的状态字段
+      const isCertified = asset.isCertified
+      return filterStatus.value === 'certified' ? isCertified : !isCertified
+    })
   }
 
   return filtered
@@ -573,15 +580,15 @@ const fetchAssets = async () => {
       walletStore.address,
       userStore.profile?.token || ''
     );
-
     if (response.success) {
       const pendingRequests = response.data;
       console.log("整合后的数据", pendingRequests);
       assetList.value = pendingRequests.map((request: CertificationRequestDTO) => ({
+        currentCertifierAddress: request.certifierAddress,
         tokenId: request.tokenId.toString(),
         cid: request.cid || '',
         registrationDate: request.requestTime,
-        version: '1',
+        version: request.version || '1',
         metadata: {
           fileName: request.fileName || '',
           fileType: request.fileType || '',
@@ -591,17 +598,11 @@ const fetchAssets = async () => {
           description: request.description || '暂无描述'
         },
         isCertified: request.chainStatus === 'APPROVED',
-        pendingCertifiers: [request.certifierAddress],
-        certificationRequest: request,
-        certificationStatus: [{
-          certifierAddress: request.certifierAddress,
-          status: (request.chainStatus === 'APPROVED' ? 'APPROVED' : 'PENDING'),
-          reason: request.chainComment || request.reason,
-          timestamp: request.certificationTime || new Date(request.requestTime).getTime(),
-          fileResources: request.fileResources || []
-        }]
+        pendingCertifiers: request.pendingCertifiers,
+        certificationStatus: request.certificationStatus,
+        certificationRequest: request
       }));
-      
+      console.log("assetList", assetList.value);
       totalAssets.value = pendingRequests.length;
     } else {
       ElMessage.error(response.message || '获取待认证资产列表失败');
@@ -718,60 +719,17 @@ const downloadAsset = async (asset: Asset) => {
 
 const showCertificationDialog = async (asset: any) => {
   try {
-    // 检查当前用户是否是认证人
-    const service = await getDigitalAssetService()
-    const certificationDetails = await service.getAssetCertificationDetails(Number(asset.tokenId))
-    const isCurrentUserCertifier = certificationDetails.asset.certificationStatus.some(
-      (status: CertificationStatus) => status.certifierAddress.toLowerCase() === walletStore.address.toLowerCase()
-    )
-
-    if (!isCurrentUserCertifier) {
-      ElMessage.warning('您不是该资产的认证人')
-      return
-    }
-
     selectedAssetForCert.value = asset
+    console.log('selectedAssetForCert.value:', selectedAssetForCert.value);
+    console.log('selectedAssetForCert:', selectedAssetForCert);
     certificationDialogVisible.value = true
-    certificationForm.value.comment = ''
-    
-    // 获取认证状态
-    await fetchCertificationStatus(Number(asset.tokenId))
+    certificationForm.value.comment = asset.certificationRequest.reason
+    console.log('asset:', asset);
   } catch (error) {
     console.error('打开认证对话框失败:', error)
     ElMessage.error('打开认证对话框失败')
   }
 }
-
-const fetchCertificationStatus = async (tokenId: number) => {
-  if (!tokenId) return;
-  
-  isLoadingStatus.value = true;
-  try {
-    const service = await getDigitalAssetService();
-    const result = await service.getAssetCertificationDetails(tokenId);
-    // 确保 result.asset 和 certificationStatus 存在
-    if (result?.asset?.certificationStatus) {
-      certificationStatus.value = result.asset.certificationStatus.map((status: CertificationStatus) => ({
-        ...status,
-        status: status.status as 'PENDING' | 'APPROVED',
-        isCurrentUser: status.certifierAddress.toLowerCase() === userStore.profile?.walletAddress?.toLowerCase(),
-        reason: status.reason || '',
-        fileResources: status.fileResources || []
-      }));
-    } else {
-      // 如果没有认证状态，设置为空数组
-      certificationStatus.value = [];
-    }
-    console.log(certificationStatus.value);
-  } catch (error) {
-    console.error('获取认证状态失败:', error);
-    ElMessage.error('获取认证状态失败');
-    // 发生错误时也设置为空数组
-    certificationStatus.value = [];
-  } finally {
-    isLoadingStatus.value = false;
-  }
-};
 
 const certifyAsset = async () => {
   if (!selectedAssetForCert.value || !isCertificationFormValid.value) return

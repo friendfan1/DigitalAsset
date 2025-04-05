@@ -247,9 +247,13 @@ public class CertificationServiceImpl implements CertificationService {
     }
 
     @Override
+    @Transactional
     public Void updateCertification(CertificationActionDTO updateDatabaseDTO) {
         AssetCertificationRequest request = requestRepository
-                .findByTokenIdAndCertifierAddress(updateDatabaseDTO.getTokenId(), updateDatabaseDTO.getCertifierAddress());
+                .findByTokenIdAndCertifierAddress(
+                        updateDatabaseDTO.getTokenId(),
+                        updateDatabaseDTO.getCertifierAddress()
+                );
         request.setStatus(AssetCertificationRequest.RequestStatus.APPROVED);
         request.setUpdatedAt(LocalDateTime.now());
         requestRepository.save(request);

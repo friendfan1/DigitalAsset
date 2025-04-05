@@ -38,6 +38,13 @@ contract DigitalAsset is ERC721, ERC721Burnable, ReentrancyGuard, EIP712 {
         address[] pendingCertifiers;
     }
 
+    struct CertificationWithTokenId {
+        uint256 tokenId;
+        address certifier;
+        uint256 timestamp;
+        string comment;
+    }
+
     uint256 private _tokenIdCounter;
     mapping(uint256 => AssetMetadata) private _metadata;
     mapping(uint256 => Certification[]) private _certifications;
@@ -273,6 +280,50 @@ contract DigitalAsset is ERC721, ERC721Burnable, ReentrancyGuard, EIP712 {
     function hasCertified(uint256 tokenId, address certifier) external view returns (bool) {
         require(_exists(tokenId), "Invalid token");
         return _metadata[tokenId].hasCertified[certifier];
+    }
+
+    function getCertificationsByAddress(address certifier) external view returns (CertificationWithTokenId[] memory) {
+        // 首先计算该地址的认证记录总数
+        uint256 count = 0;
+        uint256 currentTokenId = 0;
+        
+        while (currentTokenId < _tokenIdCounter) {
+            if (_exists(currentTokenId)) {
+                Certification[] memory certs = _certifications[currentTokenId];
+                for (uint256 i = 0; i < certs.length; i++) {
+                    if (certs[i].certifier == certifier) {
+                        count++;
+                    }
+                }
+            }
+            currentTokenId++;
+        }
+
+        // 创建结果数组
+        CertificationWithTokenId[] memory result = new CertificationWithTokenId[](count);
+        uint256 resultIndex = 0;
+        currentTokenId = 0;
+
+        // 再次遍历收集认证记录
+        while (currentTokenId < _tokenIdCounter) {
+            if (_exists(currentTokenId)) {
+                Certification[] memory certs = _certifications[currentTokenId];
+                for (uint256 i = 0; i < certs.length; i++) {
+                    if (certs[i].certifier == certifier) {
+                        result[resultIndex] = CertificationWithTokenId({
+                            tokenId: currentTokenId,
+                            certifier: certs[i].certifier,
+                            timestamp: certs[i].timestamp,
+                            comment: certs[i].comment
+                        });
+                        resultIndex++;
+                    }
+                }
+            }
+            currentTokenId++;
+        }
+
+        return result;
     }
 
     // ===================== 内部函数 =====================
